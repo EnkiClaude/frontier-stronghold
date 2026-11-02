@@ -298,3 +298,25 @@ because autoload names aren't registered yet at that point. Settings are now
 accessed via `GameSettings.get_instance()`, which works everywhere.
 
 Tests: 103 pass.
+
+## 2026-11-02 — v0.2.4: playtest feedback #3
+
+**Invisible enemies and belt items.** The player's screenshots showed the HUD
+counting 56 enemies and 200+ factory items, the minimap showing enemy dots, and
+a tracer pointing at an empty spot, but no enemies or belt items in the world.
+Buildings, drawn with `draw_texture_rect`, rendered fine. Both missing layers
+used `MultiMeshInstance2D` with raw buffers, which fails on the player's Mac
+(Compatibility renderer) while working on the Linux test renderer. I couldn't
+reproduce it here, so I switched both to the drawing path that's proven to work
+on the player's machine: canvas draw calls culled to the view (ADR-006).
+
+**Other changes:**
+- Middle-click pipette (`CameraController.middle_clicked` fires when the
+  middle-button press moved less than 6 px; `Q` does the same).
+- Right-click swipe-sell, locked to the first axis moved
+  (`BuildController.begin_sell_swipe`, `_swipe_target`).
+- Activity-based input/output markers: `Building.last_in_tick`,
+  `last_out_tick` and `last_out_tile` are recorded by `FactorySystem`, and
+  `BuildingRenderer.draw_io(..., only_active)` fades markers over 1.5 s.
+
+Tests: 106 pass (new: pipette, locked swipe-sell, transfer timestamps).

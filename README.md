@@ -51,7 +51,7 @@ Mining Drill (on iron ore) → Belt → Arm → Smelter → Arm → Ammo Factory
 ```
 
 - **Drills** drop ore onto whatever is in front of them (the arrow).
-- **Robotic Arms** move one item from the tile behind them to the tile in front (the arrow). They only pick up what the target can use, and belts keep flowing past them. Cyan markers show where items go in, green where they come out.
+- **Robotic Arms** move one item from the tile behind them to the tile in front (the arrow). They only pick up what the target can use, and belts keep flowing past them. While items are moving, cyan markers show where they're taken from and green markers show where they're delivered.
 - **Belts** dragged in a line point along the drag direction. Press R to rotate before placing.
 - One drill feeds roughly four busy Chain Guns.
 - Belts, machines and inserters don't block enemies, and enemies never damage them.
@@ -67,6 +67,8 @@ Mining Drill (on iron ore) → Belt → Arm → Smelter → Arm → Ammo Factory
 | Game menu / options (HUD scale, speeds, routes, fullscreen) | `Esc` with nothing selected (or the Menu button) |
 | Select building / place (drag for lines) | Left mouse |
 | Cancel tool / sell building under cursor | Right mouse |
+| Sell a whole row or column | Hold right mouse and swipe (locks to the first direction) |
+| Pick a building as your tool (pipette) | Middle-click it, or `Q` |
 | Build: Wall, Chain Gun, Belt, Robotic Arm, Drill, Smelter, Ammo Factory | `1`–`7` (or the toolbar) |
 | Excavate rock | `X` |
 | Move / sell selected building | `M` / `Delete` |

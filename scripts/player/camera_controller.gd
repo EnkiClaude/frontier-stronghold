@@ -25,6 +25,12 @@ var pan_mult: float = 1.0
 var zoom_mult: float = 1.0
 
 var _dragging := false
+## Screen distance moved during the current middle-button press.
+var _drag_moved := 0.0
+## Middle button released without dragging (pipette in the build controller).
+signal middle_clicked
+## Movement (px) below which a middle press counts as a click, not a pan.
+const CLICK_SLOP := 6.0
 
 
 func _process(delta: float) -> void:
@@ -55,9 +61,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		zoom_by(1.0 / zoom_step)
 	elif event.is_action_pressed("cam_drag"):
 		_dragging = true
+		_drag_moved = 0.0
 	elif event.is_action_released("cam_drag"):
 		_dragging = false
+		if _drag_moved < CLICK_SLOP:
+			middle_clicked.emit()
 	elif _dragging and event is InputEventMouseMotion:
+		_drag_moved += (event as InputEventMouseMotion).relative.length()
 		position -= (event as InputEventMouseMotion).relative / zoom.x
 		clamp_to_world()
 	else:

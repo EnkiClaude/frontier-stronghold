@@ -31,6 +31,11 @@ var crafting := false
 var held: int = -1
 ## Drill: which front tile to try first next time (round robin).
 var output_cursor: int = 0
+## Tick of the last item received / handed out (activity indicators).
+var last_in_tick: int = -100000
+var last_out_tick: int = -100000
+## Drill: tile the last item was delivered to.
+var last_out_tile: int = -1
 
 # Tower runtime state.
 ## Rounds loaded.

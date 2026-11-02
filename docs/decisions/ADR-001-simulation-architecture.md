@@ -19,6 +19,7 @@ and frame-rate dependent.
 ## Decision
 - `SimClock` converts frame time into fixed ticks (default 30 Hz), with a speed
   multiplier, pause and a per-frame catch-up cap.
+- (Rendering note: the MultiMesh drawing mentioned in early versions was replaced by culled canvas drawing; see ADR-006.)
 - Simulation state lives in `RefCounted` objects holding packed arrays (structure
   of arrays). Nodes are views or controllers only, and never own simulation state.
 - All randomness goes through `SimRng` streams forked by name.

@@ -97,6 +97,7 @@ func _ready() -> void:
 	add_child(camera)
 	camera.make_current()
 	camera.clamp_to_world()
+	camera.middle_clicked.connect(controller.pipette)
 
 	hud = Hud.new()
 	add_child(hud)

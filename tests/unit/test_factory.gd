@@ -152,3 +152,23 @@ func test_arm_feeds_turret_while_belt_keeps_going() -> void:
 	assert_eq(sim.belts.item_count(), 3, "the rest flows past to the end of the belt")
 	var line := sim.belts.lines[sim.belts.line_at[sim.grid.idx(31, 4)]]
 	assert_true(line.pos[line.pos.size() - 1] > 11.0, "leftovers reached the far end")
+
+
+func test_transfers_are_timestamped_for_indicators() -> void:
+	var sim := SimHelpers.open_sim()
+	_ore(sim, 20, 4)
+	sim.place(&"mining_drill", Vector2i(20, 4), 0)
+	sim.place(&"conveyor_belt", Vector2i(22, 5), 0)
+	sim.place(&"conveyor_belt", Vector2i(23, 5), 0)
+	sim.place(&"inserter", Vector2i(24, 5), 0)
+	sim.place(&"smelter", Vector2i(25, 5))
+	SimHelpers.run(sim, 10.0)
+	var drill := sim.building_at(Vector2i(20, 4))
+	var arm := sim.building_at(Vector2i(24, 5))
+	var smelter := sim.building_at(Vector2i(25, 5))
+	assert_eq(drill.last_out_tile, sim.grid.idx(22, 5), "drill reports the tile it fed")
+	for b: Building in [drill, arm, smelter]:
+		assert_true(sim.tick_count - b.last_in_tick < 60 or b == drill, "%s input recent" % b.def.id)
+	assert_true(sim.tick_count - arm.last_out_tick < 60)
+	assert_true(BuildingRenderer.activity(sim, arm.last_out_tick) > 0.0)
+	assert_eq(BuildingRenderer.activity(sim, -100000), 0.0, "never-used = no indicator")

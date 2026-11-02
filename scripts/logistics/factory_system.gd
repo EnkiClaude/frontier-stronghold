@@ -49,6 +49,11 @@ func unregister(b: Building) -> void:
 	inserters.erase(b)
 
 
+## Current simulation tick (set by GameSim before [method tick]); used to
+## timestamp item transfers for the activity indicators.
+var now: int = 0
+
+
 func tick(dt: float) -> void:
 	for b in drills:
 		_tick_drill(b, dt)
@@ -87,6 +92,8 @@ func _tick_drill(b: Building, dt: float) -> void:
 		var i := (b.output_cursor + k) % tiles.size()
 		if output_to_tile(tiles[i], b.held, b):
 			b.held = -1
+			b.last_out_tick = now
+			b.last_out_tile = tiles[i]
 			b.output_cursor = (i + 1) % tiles.size()
 			return
 
@@ -140,6 +147,7 @@ func _tick_inserter(b: Building, dt: float) -> void:
 			if output_to_tile(to_tile, b.held, b):
 				b.held = -1
 				b.progress = 0.0
+				b.last_out_tick = now
 		return
 	var accept := func(item: int) -> bool: return can_accept_at_tile(to_tile, item, b)
 	var item := -1
@@ -152,6 +160,7 @@ func _tick_inserter(b: Building, dt: float) -> void:
 	if item >= 0:
 		b.held = item
 		b.progress = 0.0
+		b.last_in_tick = now
 
 
 # --- Item transfer -----------------------------------------------------------
@@ -191,6 +200,7 @@ func accepts(b: Building, item: int) -> bool:
 
 
 func give(b: Building, item: int) -> void:
+	b.last_in_tick = now
 	if b.def.tower != null:
 		b.ammo += b.def.tower.rounds_per_item
 	else:
@@ -201,6 +211,7 @@ func _take_output(b: Building, accept: Callable) -> int:
 	for item: int in b.inv_out:
 		if b.inv_out[item] > 0 and accept.call(item):
 			b.inv_out[item] -= 1
+			b.last_out_tick = now
 			return item
 	return -1
 

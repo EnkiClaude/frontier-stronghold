@@ -50,3 +50,40 @@ func test_click_selects_and_right_click_sells() -> void:
 	c.sell_selected()
 	assert_eq(sim.building_at(Vector2i(20, 4)), null)
 	c.free()
+
+
+func test_pipette_picks_building_and_rotation() -> void:
+	var sim := SimHelpers.open_sim()
+	sim.place(&"conveyor_belt", Vector2i(20, 4), 3)
+	var c := _controller(sim)
+	c.mouse_override = Vector2(20.5, 4.5)
+	c._process(0.016)
+	c.pipette()
+	assert_eq(c.mode, BuildController.Mode.BUILD)
+	assert_eq(c.build_def.id, &"conveyor_belt")
+	assert_eq(c.rotation_steps, 3)
+	c.mouse_override = Vector2(30.5, 4.5)
+	c._process(0.016)
+	c.pipette()
+	assert_eq(c.mode, BuildController.Mode.SELECT, "pipette on empty ground drops the tool")
+	c.free()
+
+
+func test_right_drag_sells_a_locked_line() -> void:
+	var sim := SimHelpers.open_sim()
+	for x in range(20, 26):
+		sim.place(&"wall", Vector2i(x, 4))
+	sim.place(&"wall", Vector2i(23, 5))  # Just off the line.
+	var c := _controller(sim)
+	c.mouse_override = Vector2(20.5, 4.5)
+	c._process(0.016)
+	c.begin_sell_swipe()
+	c.mouse_override = Vector2(23.5, 4.5)
+	c._process(0.016)
+	c.mouse_override = Vector2(25.5, 5.4)  # Wobble down a row: stays locked to y = 4.
+	c._process(0.016)
+	c.end_sell_swipe()
+	for x in range(20, 26):
+		assert_eq(sim.building_at(Vector2i(x, 4)), null, "wall at x=%d should be sold" % x)
+	assert_true(sim.building_at(Vector2i(23, 5)) != null, "off-line wall must survive")
+	c.free()

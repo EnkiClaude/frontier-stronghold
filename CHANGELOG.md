@@ -5,6 +5,24 @@ goes up for each development phase and PATCH for fixes and playtest feedback.
 The version is set in `project.godot` (`application/config/version`), and it
 appears in the window title, the HUD and every exported file name.
 
+## v0.2.4 — 2026-11-02 (playtest feedback #3)
+- **Fixed: enemies and belt items were invisible on macOS.** They were drawn
+  with MultiMesh buffers, which rendered nothing on the player's Mac (the
+  HUD counted 56 enemies and 200+ items while the screen showed none).
+  - They now use the same drawing path as buildings, culled to the visible area (ADR-006).
+  - Enemies get a dark backing disc for contrast and are at least 9 px on screen.
+- **Middle-click pipette:** middle-click (or `Q`) on a building to pick it as
+  your build tool, with the same rotation. Middle-drag still pans. Middle-click on empty ground drops the tool.
+- **Right-click swipe to sell:** hold right-click and swipe to sell everything
+  you pass over. The swipe locks to the first row or column you move along, so nothing off the line is removed.
+- **Input/output markers only show activity:** they appear when items actually
+  move and fade about 1.5 s after the last transfer.
+  - Arms highlight the tile they took from (cyan) and the tile they delivered to (green).
+  - Drills highlight the tile they're feeding.
+  - Machines flash their input and output badges.
+  - Empty turrets always show the ammo they need, framed in red.
+  - Placement ghosts still preview every input and output.
+
 ## v0.2.3 — 2026-11-02 (playtest feedback #2)
 - **Belt items are easier to see:** bigger icons, and they never shrink below 6 px on screen.
 - **Mining drills output to every tile on their front side.** Before, a 2×2 drill

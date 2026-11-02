@@ -49,32 +49,70 @@ func _draw() -> void:
 			_draw_fallback(b, r)
 		_draw_overlays(b, r, tex != null)
 		if show_io:
-			draw_io(self, sim, b)
+			draw_io(self, sim, b, true)
+
+
+## Seconds an input/output marker stays visible after the last transfer.
+const ACTIVITY_SECONDS := 1.5
+
+
+## How "fresh" a transfer at [param tick] is: 1 just now, 0 when expired.
+static func activity(game: GameSim, tick: int) -> float:
+	var window := ACTIVITY_SECONDS * game.tick_rate
+	return clampf(1.0 - float(game.tick_count - tick) / window, 0.0, 1.0)
 
 
 ## Draws where a building takes items in (cyan) and puts them out (green).
-## Static so the build controller can reuse it for placement ghosts.
-static func draw_io(canvas: CanvasItem, game: GameSim, b: Building) -> void:
+## With [param only_active] (placed buildings) a marker appears only while
+## items are actually moving there, fading out afterwards. Ghosts pass false
+## to preview every input/output position. Static so the build controller
+## can reuse it.
+static func draw_io(canvas: CanvasItem, game: GameSim, b: Building, only_active: bool = false) -> void:
 	var r := Rect2(b.origin, b.size())
+	var fresh_in := 1.0 if not only_active else activity(game, b.last_in_tick)
+	var fresh_out := 1.0 if not only_active else activity(game, b.last_out_tick)
 	match b.def.kind:
 		&"drill":
 			var d := Vector2(BeltNetwork.DIRS[b.rotation % 4])
 			for t in game.factory.front_tiles(b):
-				io_arrow(canvas, Vector2(game.grid.cell_of(t)) + Vector2(0.5, 0.5) - d * 0.22, d, OUT_COLOR)
+				if only_active and t != b.last_out_tile:
+					continue
+				var a := fresh_out
+				if a > 0.0:
+					_tile_frame(canvas, game, t, Color(OUT_COLOR, 0.8 * a))
+					io_arrow(canvas, Vector2(game.grid.cell_of(t)) + Vector2(0.5, 0.5) - d * 0.22, d, Color(OUT_COLOR, 0.35 + 0.65 * a))
 		&"inserter":
 			var d := Vector2(BeltNetwork.DIRS[b.rotation % 4])
 			var c := r.get_center()
-			io_arrow(canvas, c - d * 0.78, d, IN_COLOR)
-			io_arrow(canvas, c + d * 0.78, d, OUT_COLOR)
+			if fresh_in > 0.0:
+				var from := Vector2i(c - d)
+				if game.grid.in_bounds(from.x, from.y):
+					_tile_frame(canvas, game, game.grid.idx(from.x, from.y), Color(IN_COLOR, 0.8 * fresh_in))
+				io_arrow(canvas, c - d * 0.78, d, Color(IN_COLOR, 0.35 + 0.65 * fresh_in))
+			if fresh_out > 0.0:
+				var to := Vector2i(c + d)
+				if game.grid.in_bounds(to.x, to.y):
+					_tile_frame(canvas, game, game.grid.idx(to.x, to.y), Color(OUT_COLOR, 0.8 * fresh_out))
+				io_arrow(canvas, c + d * 0.78, d, Color(OUT_COLOR, 0.35 + 0.65 * fresh_out))
 		&"crafter":
 			var ins: Array = b.def.recipe.inputs.keys()
 			var outs: Array = b.def.recipe.outputs.keys()
-			for k in ins.size():
-				_badge(canvas, game, Rect2(r.position + Vector2(0.08 + k * 0.5, 0.08), Vector2(0.44, 0.44)), StringName(ins[k]), IN_COLOR)
-			for k in outs.size():
-				_badge(canvas, game, Rect2(Vector2(r.end.x - 0.52 - k * 0.5, r.position.y + 0.08), Vector2(0.44, 0.44)), StringName(outs[k]), OUT_COLOR)
+			if fresh_in > 0.0:
+				for k in ins.size():
+					_badge(canvas, game, Rect2(r.position + Vector2(0.08 + k * 0.5, 0.08), Vector2(0.44, 0.44)), StringName(ins[k]), IN_COLOR, 0.35 + 0.65 * fresh_in)
+			if fresh_out > 0.0:
+				for k in outs.size():
+					_badge(canvas, game, Rect2(Vector2(r.end.x - 0.52 - k * 0.5, r.position.y + 0.08), Vector2(0.44, 0.44)), StringName(outs[k]), OUT_COLOR, 0.35 + 0.65 * fresh_out)
 	if b.def.tower != null and b.def.tower.ammo_item != &"":
-		_badge(canvas, game, Rect2(r.position + Vector2(0.06, 0.06), Vector2(0.42, 0.42)), b.def.tower.ammo_item, IN_COLOR)
+		var empty := not game.infinite_ammo and b.ammo <= 0 and b.is_active()
+		if fresh_in > 0.0 or empty:
+			# Empty towers always show what they need, framed in red.
+			_badge(canvas, game, Rect2(r.position + Vector2(0.06, 0.06), Vector2(0.42, 0.42)), b.def.tower.ammo_item,
+				Color(1.0, 0.3, 0.25) if empty else IN_COLOR, 1.0 if empty else 0.35 + 0.65 * fresh_in)
+
+
+static func _tile_frame(canvas: CanvasItem, game: GameSim, tile: int, col: Color) -> void:
+	canvas.draw_rect(Rect2(game.grid.cell_of(tile), Vector2.ONE).grow(-0.06), col, false, 0.07)
 
 
 ## Small triangle at [param at] pointing along [param dir].
@@ -85,17 +123,17 @@ static func io_arrow(canvas: CanvasItem, at: Vector2, dir: Vector2, col: Color) 
 	canvas.draw_polyline(PackedVector2Array([pts[0], pts[1], pts[2], pts[0]]), Color(0, 0, 0, 0.6), 0.03)
 
 
-static func _badge(canvas: CanvasItem, game: GameSim, r: Rect2, item_id: StringName, frame: Color) -> void:
+static func _badge(canvas: CanvasItem, game: GameSim, r: Rect2, item_id: StringName, frame: Color, alpha: float = 1.0) -> void:
 	var idx := game.reg.item_index(item_id)
 	if idx < 0:
 		return
-	canvas.draw_rect(r.grow(0.03), Color(0, 0, 0, 0.75))
+	canvas.draw_rect(r.grow(0.03), Color(0, 0, 0, 0.75 * alpha))
 	var icon := DataRegistry.art(game.reg.items[idx].icon)
 	if icon != null:
-		canvas.draw_texture_rect(icon, r, false)
+		canvas.draw_texture_rect(icon, r, false, Color(1, 1, 1, alpha))
 	else:
-		canvas.draw_rect(r.grow(-0.08), game.reg.items[idx].color)
-	canvas.draw_rect(r.grow(0.03), frame, false, 0.04)
+		canvas.draw_rect(r.grow(-0.08), Color(game.reg.items[idx].color, alpha))
+	canvas.draw_rect(r.grow(0.03), Color(frame, alpha), false, 0.04)
 
 
 ## Draws a chevron pointing along [param rotation] inside [param r].

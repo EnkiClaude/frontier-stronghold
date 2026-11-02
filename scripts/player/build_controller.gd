@@ -44,6 +44,85 @@ var _rest := 0.0
 
 # --- Public API (HUD buttons call these) -----------------------------------
 
+## Pipette (middle click): pick the building under the cursor as the build
+## tool, with its rotation. Pointing at nothing just drops the current tool.
+func pipette() -> void:
+	var b := sim.building_at(_hover)
+	if b == null or b.def.toolbar_slot <= 0:
+		cancel()
+		return
+	mode = Mode.BUILD
+	build_def = b.def
+	rotation_steps = b.rotation
+	_set_selected(null)
+	changed.emit()
+
+
+## Right-button sell swipe: everything the cursor passes over is sold. After
+## the first tile of movement the swipe locks to that row or column.
+var _swiping := false
+var _swipe_start := Vector2i.ZERO
+var _swipe_axis := -1  # -1 undecided, 0 horizontal, 1 vertical
+var _swipe_count := 0
+var _swipe_value := 0
+
+
+func begin_sell_swipe() -> void:
+	_swiping = true
+	_swipe_start = _hover
+	_swipe_axis = -1
+	_swipe_count = 0
+	_swipe_value = 0
+	_sell_at(_hover)
+
+
+func end_sell_swipe() -> void:
+	if not _swiping:
+		return
+	_swiping = false
+	if _swipe_count > 1:
+		message.emit("Sold %d structures (+%d)" % [_swipe_count, _swipe_value])
+	elif _swipe_count == 1:
+		message.emit("Sold for +%d" % _swipe_value)
+
+
+## Cursor position projected onto the locked swipe line.
+func _swipe_target() -> Vector2i:
+	var d := _hover - _swipe_start
+	if _swipe_axis == -1 and (absi(d.x) >= 1 or absi(d.y) >= 1):
+		_swipe_axis = 0 if absi(d.x) >= absi(d.y) else 1
+	match _swipe_axis:
+		0:
+			return Vector2i(_hover.x, _swipe_start.y)
+		1:
+			return Vector2i(_swipe_start.x, _hover.y)
+	return _swipe_start
+
+
+func _update_swipe() -> void:
+	if not _swiping:
+		return
+	var target := _swipe_target()
+	var step := Vector2i(signi(target.x - _swipe_start.x), signi(target.y - _swipe_start.y))
+	var cell := _swipe_start
+	while true:
+		_sell_at(cell)
+		if cell == target:
+			break
+		cell += step
+
+
+func _sell_at(cell: Vector2i) -> void:
+	var b := sim.building_at(cell)
+	if b == null or not b.def.sellable:
+		return
+	var value := sim.sell_value(b)
+	if sim.sell(b.id) == "":
+		_swipe_count += 1
+		_swipe_value += value
+		if selected == b:
+			_set_selected(null)
+
 func select_build(def: BuildingDef) -> void:
 	if mode == Mode.BUILD and build_def == def:
 		cancel()
@@ -109,6 +188,7 @@ func _process(delta: float) -> void:
 		_set_selected(null)
 	if mode == Mode.SELECT and _dragging:
 		_dragging = false
+	_update_swipe()
 	_update_routes()
 	_update_ghosts()
 	_update_whatif(delta)
@@ -128,11 +208,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		if mode != Mode.SELECT:
 			cancel()
 		else:
-			var b := sim.building_at(_hover)
-			if b != null and b.def.sellable:
-				_set_selected(b)
-				sell_selected()
+			begin_sell_swipe()
 		get_viewport().set_input_as_handled()
+	elif event.is_action_released("secondary"):
+		end_sell_swipe()
+	elif event.is_action_pressed("pipette"):
+		pipette()
 	elif event.is_action_pressed("rotate"):
 		rotation_steps = (rotation_steps + 1) % 4
 	elif event.is_action_pressed("cancel"):

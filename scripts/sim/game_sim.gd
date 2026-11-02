@@ -136,6 +136,7 @@ func tick(_tick: int = 0) -> void:
 	spatial.rebuild(enemies)
 	_progress_construction()
 	_progress_excavation()
+	factory.now = tick_count
 	factory.tick(dt)
 	belts.tick(dt)
 	_fire_towers()

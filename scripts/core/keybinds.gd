@@ -29,6 +29,7 @@ static func default_bindings() -> Dictionary:
 		"primary": [_mouse(MOUSE_BUTTON_LEFT)],
 		"secondary": [_mouse(MOUSE_BUTTON_RIGHT)],
 		"rotate": [_key(KEY_R)],
+		"pipette": [_key(KEY_Q)],
 		"pause": [_key(KEY_SPACE)],
 		"speed_up": [_key(KEY_EQUAL), _key(KEY_KP_ADD)],
 		"speed_down": [_key(KEY_MINUS), _key(KEY_KP_SUBTRACT)],
