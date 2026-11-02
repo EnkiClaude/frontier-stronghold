@@ -31,6 +31,19 @@ static func default_bindings() -> Dictionary:
 		"speed_up": [_key(KEY_EQUAL), _key(KEY_KP_ADD)],
 		"speed_down": [_key(KEY_MINUS), _key(KEY_KP_SUBTRACT)],
 		"toggle_debug": [_key(KEY_F3)],
+		"cancel": [_key(KEY_ESCAPE)],
+		"tool_excavate": [_key(KEY_X)],
+		"sell_selected": [_key(KEY_DELETE), _key(KEY_BACKSPACE)],
+		"move_selected": [_key(KEY_M)],
+		"tool_1": [_key(KEY_1)],
+		"tool_2": [_key(KEY_2)],
+		"tool_3": [_key(KEY_3)],
+		"tool_4": [_key(KEY_4)],
+		"tool_5": [_key(KEY_5)],
+		"tool_6": [_key(KEY_6)],
+		"tool_7": [_key(KEY_7)],
+		"tool_8": [_key(KEY_8)],
+		"tool_9": [_key(KEY_9)],
 	}
 
 

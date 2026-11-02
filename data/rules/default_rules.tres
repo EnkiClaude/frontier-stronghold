@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="GameRules" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/game_rules.gd" id="1_rules"]
+
+[resource]
+script = ExtResource("1_rules")
+start_credits = 400
+core_hp = 20
+sell_refund = 0.85
+undo_window = 10.0
+relocate_fee = 0.1
+relocate_time = 3.0
+no_build_radius = 6.0
+excavate_cost = 15
+excavate_time = 2.0
+tick_rate = 30
+flow_nodes_per_tick = 8000

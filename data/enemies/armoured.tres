@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="EnemyDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/enemy_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"armoured"
+display_name = "Armoured Crawler"
+hp = 110.0
+speed = 0.9
+armor = 3.0
+core_damage = 3
+reward = 10
+color = Color(0.55, 0.25, 0.6, 1)
+radius = 0.42
+spawn_weight = 1.0
+unlock_time = 90.0

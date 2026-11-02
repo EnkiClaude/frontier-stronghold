@@ -6,7 +6,9 @@ with ammo from your factory, and push the frontier east.
 
 See [PROJECT_PLAN.md](PROJECT_PLAN.md) for the full design and roadmap.
 
-**Status:** Phase 0 (Foundation) complete. Next: Phase 1 (Maze prototype).
+**Status:** Phase 1 (Maze prototype) complete: build walls to shape the enemy
+route, defend the Core with Chain Guns, and excavate rock to open new paths.
+Next: Phase 1.5 (supply slice: belt-fed ammo).
 
 ## Requirements
 
@@ -26,17 +28,49 @@ Or from a terminal (on macOS, `godot` is `/Applications/Godot.app/Contents/MacOS
 godot --path .
 ```
 
+### How to play
+
+Enemies spawn from the red nests on the east edge and walk to your Core (blue,
+west edge). The **orange line** is their current route. Build walls to make
+that route as long as possible, then line it with Chain Guns. You can never
+fully block the route; the game rejects any placement that would. While you
+hover a valid wall or tower, a **cyan line** previews the route it would create.
+
+- You can't build, sell, move or excavate within 6 tiles of an enemy (the red circles).
+- Selling refunds 85% (100% within 10 s of placing). Moving costs 10%, and the tower is offline for 3 s.
+- Excavating rock (grey, speckled) opens new routes.
+- An **assault** (a large wave) arrives every 2 minutes. Kills earn credits.
+
 ### Controls
 
 | Action | Default |
 |---|---|
 | Pan camera | W A S D / arrow keys, or middle-mouse drag |
 | Zoom (towards cursor) | Mouse wheel / Page Up / Page Down |
+| Select building / place (drag for lines) | Left mouse |
+| Cancel tool / sell building under cursor | Right mouse |
+| Build Stone Wall / Chain Gun | `1` / `2` (or the toolbar) |
+| Excavate rock | `X` |
+| Move / sell selected building | `M` / `Delete` |
+| Rotate | `R` |
+| Cancel | `Esc` |
 | Pause | Space |
 | Game speed up / down | `=` / `-` |
 | Debug overlay | F3 |
 
 Key bindings are stored in `user://keybindings.cfg` and can be overridden there. An in-game rebinding menu is planned.
+
+## Building release versions
+
+```sh
+tools/export.sh            # macOS, Windows and Linux into build/
+tools/export.sh macOS      # just one platform
+```
+
+You need the Godot 4.7.2 export templates (in the editor: *Editor → Manage
+Export Templates → Download*). You can also export from the editor via
+*Project → Export*. The macOS build is ad-hoc signed only. The first time,
+right-click the app and choose **Open** (or run `xattr -cr FrontierStronghold.app`).
 
 ## Tests and benchmarks
 
@@ -45,6 +79,10 @@ tools/run_tests.sh               # all unit tests (headless)
 tools/run_tests.sh world_grid    # only tests whose file:method contains the filter
 tools/run_benchmarks.sh          # performance benchmarks
 ```
+
+The test suite includes a scripted "bot player" (`tests/scenarios/maze_scenario.gd`)
+that builds a maze on a real map and plays 7 minutes. It also checks that every
+script compiles. `tools/screenshot.gd` renders the game for visual checks.
 
 Set `GODOT=/path/to/godot` if the binary is not on your `PATH`. Tests are plain
 GDScript under `tests/unit/` (files `test_*.gd`, methods `test_*`, extending
@@ -57,10 +95,14 @@ data/            Game definitions as Godot resources (.tres): terrain, world gen
 docs/decisions/  Architecture Decision Records (ADRs)
 scenes/          Scenes (main.tscn is the entry point)
 scripts/
+  sim/           GameSim: the whole simulation and the player commands
+  buildings/     Building instances
+  enemies/       Enemy storage (structure of arrays) and spawning
+  combat/        Spatial hash for targeting
   core/          Fixed-tick clock, deterministic RNG, event bus, key bindings
   data/          Definition classes and the DataRegistry loader
   world/         World grid storage and procedural generation
-  pathfinding/   Grid BFS (basis of the Phase 1 flow field)
+  pathfinding/   Flow field, route validation, BFS
   render/        Views that draw simulation state (never modify it)
   player/        Camera and player input
   ui/            HUD and debug overlay

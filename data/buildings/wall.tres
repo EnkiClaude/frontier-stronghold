@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/building_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"wall"
+display_name = "Stone Wall"
+size = Vector2i(1, 1)
+blocks_path = true
+cost = 5
+build_time = 1.0
+color = Color(0.78, 0.74, 0.66, 1)
+toolbar_slot = 1

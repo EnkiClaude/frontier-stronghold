@@ -1,0 +1,521 @@
+class_name GameSim
+extends RefCounted
+## The complete game simulation. Plain data, no Nodes, fully deterministic for
+## a given seed and command sequence, runnable headless (ADR-001).
+##
+## Views read its state; player input calls the command methods
+## ([method place], [method sell], [method relocate], [method excavate]),
+## which return "" on success or a human-readable reason on failure.
+
+const NEST_SIZE := Vector2i(2, 2)
+const CORE_BUFFER := 2
+const NEST_BUFFER := 3
+
+const ERR_UNKNOWN := "Unknown building"
+const ERR_BOUNDS := "Outside the map"
+const ERR_TERRAIN := "Can't build on this terrain"
+const ERR_OCCUPIED := "Space is occupied"
+const ERR_PROTECTED := "Too close to the Core or a nest"
+const ERR_CREDITS := "Not enough credits"
+const ERR_ENEMIES := "Too close to enemies"
+const ERR_BLOCKS := "Would block the enemy path"
+const ERR_NOT_SELLABLE := "Can't be sold"
+const ERR_NOT_MOVABLE := "Can't be moved right now"
+const ERR_NOT_DIGGABLE := "Nothing to excavate here"
+const ERR_GAME_OVER := "Game over"
+
+var reg: DataRegistry
+var rules: GameRules
+var grid: WorldGrid
+var path: PathMap
+var enemies := EnemyStore.new()
+var spatial: SpatialHash
+var spawner: SpawnDirector
+var rng: SimRng
+var _spawn_rng: SimRng
+
+var tick_rate: int
+var dt: float
+var tick_count: int = 0
+## Game time in seconds.
+var time: float = 0.0
+
+var credits: int
+var core_hp: int
+var core: Building
+## Top-left tiles of the enemy nests.
+var nests: Array[Vector2i] = []
+var game_over := false
+
+## id -> Building
+var buildings: Dictionary = {}
+## Tile -> building id (0 = empty).
+var occupancy := PackedInt32Array()
+## Tile -> ticks left, for pending excavations.
+var excavations: Dictionary = {}
+## Incremented whenever buildings or excavations change (views redraw on it).
+var structures_version: int = 0
+## Supply is not simulated yet (Phase 1.5); towers fire without ammo.
+var infinite_ammo := true
+
+## Shots fired since the last [method drain_shots]: [from, to] in tile units.
+var shots: Array[PackedVector2Array] = []
+
+# Statistics.
+var kills: int = 0
+var leaked: int = 0
+var credits_earned: int = 0
+
+var _next_building_id := 1
+var _towers: Array[Building] = []
+var _pending: Array[Building] = []
+
+
+func _init(registry: DataRegistry, world: WorldGrid, seed_value: int) -> void:
+	reg = registry
+	rules = registry.rules
+	grid = world
+	tick_rate = rules.tick_rate
+	dt = 1.0 / float(tick_rate)
+	rng = SimRng.new(seed_value)
+	_spawn_rng = rng.fork("spawn")
+	credits = rules.start_credits
+	core_hp = rules.core_hp
+	occupancy.resize(grid.size())
+	occupancy.fill(0)
+	path = PathMap.new(grid, reg.walkable_lut)
+	path.nodes_per_tick = rules.flow_nodes_per_tick
+	spatial = SpatialHash.new(grid.width, grid.height)
+	spawner = SpawnDirector.new(reg.spawning, reg.enemies, rng.fork("spawner"))
+	_place_core()
+	_place_nests()
+	path.rebuild_now()
+
+
+# --- Setup -------------------------------------------------------------------
+
+func _place_core() -> void:
+	var def: BuildingDef = reg.buildings_by_id[&"core"]
+	var at := Vector2i(3, grid.height / 2 - def.size.y / 2)
+	core = _add_building(def, at, 0)
+	core.state = Building.State.ACTIVE
+	path.goal_cells = core.cells.duplicate()
+	path.protect_rect(Rect2i(at, def.size).grow(CORE_BUFFER))
+
+
+func _place_nests() -> void:
+	var x := grid.width - 5
+	var spawn := PackedInt32Array()
+	for frac in [1.0 / 3.0, 2.0 / 3.0]:
+		var at := Vector2i(x, int(grid.height * frac) - NEST_SIZE.y / 2)
+		nests.append(at)
+		path.protect_rect(Rect2i(at, NEST_SIZE).grow(NEST_BUFFER))
+		for dx in NEST_SIZE.x:
+			for dy in NEST_SIZE.y:
+				spawn.append(grid.idx(at.x + dx, at.y + dy))
+	path.spawn_cells = spawn
+
+
+# --- Tick --------------------------------------------------------------------
+
+## Advances the simulation by one fixed step.
+func tick(_tick: int = 0) -> void:
+	if game_over:
+		return
+	tick_count += 1
+	time += dt
+	spawner.update(time, dt, nests.size(), _spawn_enemy)
+	_move_enemies()
+	spatial.rebuild(enemies)
+	_progress_construction()
+	_progress_excavation()
+	_fire_towers()
+	_cleanup_enemies()
+	spatial.rebuild(enemies)  # Indices changed; keep queries between ticks valid.
+	path.tick()
+	if core_hp <= 0:
+		core_hp = 0
+		game_over = true
+
+
+func _spawn_enemy(type_index: int, nest: int, hp_mult: float) -> void:
+	var at := nests[nest]
+	var tile := grid.idx(at.x + _spawn_rng.next_int_range(0, NEST_SIZE.x - 1), at.y + _spawn_rng.next_int_range(0, NEST_SIZE.y - 1))
+	enemies.spawn(type_index, tile, grid, reg.enemies[type_index].hp * hp_mult, _spawn_rng)
+
+
+var _reached_core := PackedByteArray()
+
+
+func _move_enemies() -> void:
+	var n := enemies.count
+	var h := grid.height
+	var ex := enemies.x
+	var ey := enemies.y
+	var cell := enemies.cell
+	var nxt := enemies.next
+	var pass_arr := path.passable
+	var field := path.dist
+	_reached_core.resize(n)
+	_reached_core.fill(0)
+	for i in n:
+		enemies.prev_x[i] = ex[i]
+		enemies.prev_y[i] = ey[i]
+		var step := reg.enemies[enemies.type[i]].speed * dt
+		# Up to two sub-moves so leftover distance carries into the next tile.
+		for sub in 2:
+			if field[cell[i]] == 0:
+				_reached_core[i] = 1
+				break
+			var target := nxt[i]
+			if target < 0 or pass_arr[target] == 0:
+				target = path.next_cell(cell[i])
+				nxt[i] = target
+				if target < 0:
+					break  # No route known yet (field updating): wait.
+			var tx := float(target / h) + 0.5 + enemies.off_x[i]
+			var ty := float(target % h) + 0.5 + enemies.off_y[i]
+			var dx := tx - ex[i]
+			var dy := ty - ey[i]
+			var d := sqrt(dx * dx + dy * dy)
+			if d > step:
+				ex[i] += dx / d * step
+				ey[i] += dy / d * step
+				break
+			ex[i] = tx
+			ey[i] = ty
+			step -= d
+			cell[i] = target
+			nxt[i] = -1
+
+
+func _progress_construction() -> void:
+	if _pending.is_empty():
+		return
+	var done: Array[Building] = []
+	for b in _pending:
+		if b.timer > 0:
+			b.timer -= 1
+		if b.timer > 0:
+			continue
+		if b.def.blocks_path and _enemy_on_cells(b.cells):
+			continue  # Wait until the footprint is clear.
+		if b.def.blocks_path:
+			for c in b.cells:
+				path.set_reserved(c, false)
+				path.set_blocked(c, true)
+		b.state = Building.State.ACTIVE
+		done.append(b)
+	for b in done:
+		_pending.erase(b)
+	if not done.is_empty():
+		structures_version += 1
+
+
+func _progress_excavation() -> void:
+	if excavations.is_empty():
+		return
+	var finished := PackedInt32Array()
+	for tile: int in excavations:
+		excavations[tile] -= 1
+		if excavations[tile] <= 0:
+			finished.append(tile)
+	for tile in finished:
+		excavations.erase(tile)
+		var c := grid.cell_of(tile)
+		var def: TerrainDef = reg.terrain_by_code[grid.get_terrain(c.x, c.y)]
+		grid.set_terrain(c.x, c.y, reg.terrain_code(def.becomes))
+		path.terrain_changed(tile)
+	if not finished.is_empty():
+		structures_version += 1
+
+
+func _fire_towers() -> void:
+	var field := path.dist
+	for b in _towers:
+		if not b.is_active():
+			continue
+		var tower := b.def.tower
+		b.cooldown -= dt
+		if b.cooldown > 0.0:
+			continue
+		var center := b.center()
+		var r := tower.range_tiles
+		var t := enemies.index_of(b.target_uid)
+		if t >= 0:
+			var dx := enemies.x[t] - center.x
+			var dy := enemies.y[t] - center.y
+			if enemies.hp[t] <= 0.0 or dx * dx + dy * dy > r * r:
+				t = -1
+		if t < 0:
+			t = _pick_target(center, r, tower.targeting, field)
+		if t < 0:
+			b.target_uid = -1
+			b.cooldown = 0.0
+			continue
+		b.target_uid = enemies.uid[t]
+		var def: EnemyDef = reg.enemies[enemies.type[t]]
+		enemies.hp[t] -= maxf(tower.damage - def.armor, tower.damage * 0.2)
+		var to := Vector2(enemies.x[t], enemies.y[t])
+		b.aim_angle = (to - center).angle()
+		shots.append(PackedVector2Array([center, to]))
+		b.cooldown = maxf(b.cooldown, -dt) + 1.0 / tower.fire_rate
+
+
+func _pick_target(center: Vector2, r: float, priority: StringName, field: PackedInt32Array) -> int:
+	var best := -1
+	var best_score := INF
+	for i in spatial.query(enemies, center.x, center.y, r):
+		if enemies.hp[i] <= 0.0:
+			continue
+		var score: float
+		match priority:
+			&"last":
+				score = -float(field[enemies.cell[i]])
+			&"strongest":
+				score = -enemies.hp[i]
+			&"weakest":
+				score = enemies.hp[i]
+			&"closest":
+				score = Vector2(enemies.x[i], enemies.y[i]).distance_squared_to(center)
+			_:  # "first": closest to the Core along the path.
+				score = float(field[enemies.cell[i]])
+		if score < best_score or (score == best_score and enemies.uid[i] < enemies.uid[best]):
+			best = i
+			best_score = score
+	return best
+
+
+func _cleanup_enemies() -> void:
+	for i in range(enemies.count - 1, -1, -1):
+		var def: EnemyDef = reg.enemies[enemies.type[i]]
+		if enemies.hp[i] <= 0.0:
+			kills += 1
+			credits += def.reward
+			credits_earned += def.reward
+			enemies.remove_at(i)
+		elif i < _reached_core.size() and _reached_core[i] == 1:
+			leaked += 1
+			core_hp -= def.core_damage
+			enemies.remove_at(i)
+
+
+# --- Commands ----------------------------------------------------------------
+
+## Checks whether [param def_id] can be placed at [param at]. Returns "" if OK.
+## [param moving] is a building being relocated (its own footprint counts as free).
+## [param skip_path] skips the route check (cheap previews of long drag lines).
+func check_place(def_id: StringName, at: Vector2i, rot: int = 0, moving: Building = null, skip_path: bool = false) -> String:
+	if game_over:
+		return ERR_GAME_OVER
+	var def: BuildingDef = reg.buildings_by_id.get(def_id)
+	if def == null or def.id == &"core":
+		return ERR_UNKNOWN
+	var cells := Building.footprint_cells(grid, def, at, rot)
+	for c in cells:
+		if c < 0:
+			return ERR_BOUNDS
+	for c in cells:
+		if path.protected[c] == 1:
+			return ERR_PROTECTED
+		if reg.buildable_lut[grid.terrain[c]] == 0:
+			return ERR_TERRAIN
+		if excavations.has(c):
+			return ERR_OCCUPIED
+		var occ := occupancy[c]
+		if occ != 0 and (moving == null or occ != moving.id):
+			return ERR_OCCUPIED
+	if moving == null and credits < def.cost:
+		return ERR_CREDITS
+	if _enemies_near(Rect2(at, Building.footprint_size(def, rot))):
+		return ERR_ENEMIES
+	if def.blocks_path and not skip_path:
+		var freed := PackedInt32Array()
+		if moving != null and moving.def.blocks_path:
+			for c in moving.cells:
+				if not cells.has(c):
+					freed.append(c)
+		if not path.can_block(cells, _enemy_cells(), freed):
+			return ERR_BLOCKS
+	return ""
+
+
+## Places a new structure (pays its cost). Returns "" on success.
+func place(def_id: StringName, at: Vector2i, rot: int = 0) -> String:
+	var err := check_place(def_id, at, rot)
+	if err != "":
+		return err
+	var def: BuildingDef = reg.buildings_by_id[def_id]
+	credits -= def.cost
+	var b := _add_building(def, at, rot)
+	b.invested = def.cost
+	b.state = Building.State.CONSTRUCTING
+	b.timer = ceili(def.build_time * tick_rate)
+	if def.blocks_path:
+		for c in b.cells:
+			path.set_reserved(c, true)
+	_pending.append(b)
+	return ""
+
+
+## Credits returned if [param b] is sold now.
+func sell_value(b: Building) -> int:
+	if tick_count - b.placed_tick <= int(rules.undo_window * tick_rate):
+		return b.invested
+	return floori(b.invested * rules.sell_refund)
+
+
+func relocate_fee(b: Building) -> int:
+	return ceili(b.invested * rules.relocate_fee)
+
+
+func sell(id: int) -> String:
+	if game_over:
+		return ERR_GAME_OVER
+	var b: Building = buildings.get(id)
+	if b == null or not b.def.sellable:
+		return ERR_NOT_SELLABLE
+	if _enemies_near(Rect2(b.origin, b.size())):
+		return ERR_ENEMIES
+	credits += sell_value(b)
+	_vacate(b)
+	buildings.erase(id)
+	_towers.erase(b)
+	_pending.erase(b)
+	structures_version += 1
+	return ""
+
+
+## Moves an active structure to [param at] for a fee; it is offline while it redeploys.
+func relocate(id: int, at: Vector2i, rot: int = 0) -> String:
+	if game_over:
+		return ERR_GAME_OVER
+	var b: Building = buildings.get(id)
+	if b == null or not b.def.relocatable or not b.is_active():
+		return ERR_NOT_MOVABLE
+	var fee := relocate_fee(b)
+	if credits < fee:
+		return ERR_CREDITS
+	if _enemies_near(Rect2(b.origin, b.size())):
+		return ERR_ENEMIES
+	var err := check_place(b.def.id, at, rot, b)
+	if err != "":
+		return err
+	credits -= fee
+	_vacate(b)
+	b.origin = at
+	b.rotation = rot
+	b.cells = Building.footprint_cells(grid, b.def, at, rot)
+	for c in b.cells:
+		occupancy[c] = b.id
+		if b.def.blocks_path:
+			path.set_reserved(c, true)
+	b.state = Building.State.RELOCATING
+	b.timer = ceili(rules.relocate_time * tick_rate)
+	b.target_uid = -1
+	_pending.append(b)
+	structures_version += 1
+	return ""
+
+
+func check_excavate(cell: Vector2i) -> String:
+	if game_over:
+		return ERR_GAME_OVER
+	if not grid.in_bounds(cell.x, cell.y):
+		return ERR_BOUNDS
+	var tile := grid.idx(cell.x, cell.y)
+	var def: TerrainDef = reg.terrain_by_code[grid.terrain[tile]]
+	if def == null or not def.destructible or excavations.has(tile):
+		return ERR_NOT_DIGGABLE
+	if credits < rules.excavate_cost:
+		return ERR_CREDITS
+	if _enemies_near(Rect2(cell, Vector2.ONE)):
+		return ERR_ENEMIES
+	return ""
+
+
+## Orders a rock tile to be excavated (opens a new route after a delay).
+func excavate(cell: Vector2i) -> String:
+	var err := check_excavate(cell)
+	if err != "":
+		return err
+	credits -= rules.excavate_cost
+	excavations[grid.idx(cell.x, cell.y)] = ceili(rules.excavate_time * tick_rate)
+	structures_version += 1
+	return ""
+
+
+func building_at(cell: Vector2i) -> Building:
+	if not grid.in_bounds(cell.x, cell.y):
+		return null
+	return buildings.get(occupancy[grid.idx(cell.x, cell.y)])
+
+
+# --- Helpers -----------------------------------------------------------------
+
+func _add_building(def: BuildingDef, at: Vector2i, rot: int) -> Building:
+	var b := Building.new()
+	b.id = _next_building_id
+	_next_building_id += 1
+	b.def = def
+	b.origin = at
+	b.rotation = rot
+	b.placed_tick = tick_count
+	b.cells = Building.footprint_cells(grid, def, at, rot)
+	for c in b.cells:
+		occupancy[c] = b.id
+	buildings[b.id] = b
+	if def.tower != null:
+		_towers.append(b)
+	structures_version += 1
+	return b
+
+
+## Frees the footprint of [param b] in occupancy and the path layers.
+func _vacate(b: Building) -> void:
+	for c in b.cells:
+		occupancy[c] = 0
+		if b.def.blocks_path:
+			if b.state == Building.State.ACTIVE:
+				path.set_blocked(c, false)
+			else:
+				path.set_reserved(c, false)
+	_pending.erase(b)
+
+
+func _enemies_near(rect: Rect2) -> bool:
+	return spatial.any_near_rect(enemies, rect, rules.no_build_radius)
+
+
+func _enemy_cells() -> PackedInt32Array:
+	var out := enemies.cell.duplicate()
+	for c in enemies.next:
+		if c >= 0:
+			out.append(c)
+	return out
+
+
+func _enemy_on_cells(cells: PackedInt32Array) -> bool:
+	for i in enemies.count:
+		if cells.has(enemies.cell[i]) or cells.has(enemies.next[i]):
+			return true
+	return false
+
+
+## Collects and clears the shots fired since the last call (for effects).
+func drain_shots() -> Array[PackedVector2Array]:
+	var out := shots
+	shots = []
+	return out
+
+
+## Seconds until the next assault starts (0 while one is running).
+func seconds_to_assault() -> float:
+	if spawner.is_assault_active():
+		return 0.0
+	return maxf(0.0, spawner.next_assault_at - time)
+
+
+## Compact fingerprint of the simulation state (determinism tests).
+func state_hash() -> int:
+	return hash([tick_count, credits, core_hp, kills, leaked, enemies.count, enemies.uid, enemies.x, enemies.y, enemies.hp, buildings.size(), path.version])

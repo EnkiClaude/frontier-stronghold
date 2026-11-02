@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="EnemyDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/enemy_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"swarm"
+display_name = "Swarmer"
+hp = 30.0
+speed = 1.6
+armor = 0.0
+core_damage = 1
+reward = 3
+color = Color(0.9, 0.3, 0.25, 1)
+radius = 0.28
+spawn_weight = 4.0
+unlock_time = 0.0

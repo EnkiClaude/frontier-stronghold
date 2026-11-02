@@ -7,6 +7,10 @@ extends RefCounted
 ## precomputed here so hot loops never touch Resource objects.
 
 const TERRAIN_DIR := "res://data/terrain"
+const BUILDING_DIR := "res://data/buildings"
+const ENEMY_DIR := "res://data/enemies"
+const RULES_PATH := "res://data/rules/default_rules.tres"
+const SPAWNING_PATH := "res://data/rules/default_spawning.tres"
 
 ## Index = terrain code. Gaps are null.
 var terrain_by_code: Array[TerrainDef] = []
@@ -15,6 +19,12 @@ var terrain_by_id: Dictionary = {}
 var walkable_lut := PackedByteArray()
 ## code -> 1 if structures can be placed, else 0.
 var buildable_lut := PackedByteArray()
+var buildings_by_id: Dictionary = {}
+## Enemy definitions; the array index is the enemy type index used by the simulation.
+var enemies: Array[EnemyDef] = []
+var enemies_by_id: Dictionary = {}
+var rules: GameRules
+var spawning: SpawnConfig
 ## Validation problems found while loading. Empty when everything is fine.
 var errors := PackedStringArray()
 
@@ -22,7 +32,54 @@ var errors := PackedStringArray()
 static func load_default() -> DataRegistry:
 	var reg := DataRegistry.new()
 	reg.load_terrain(TERRAIN_DIR)
+	reg.load_buildings(BUILDING_DIR)
+	reg.load_enemies(ENEMY_DIR)
+	reg.rules = load(RULES_PATH) as GameRules
+	reg.spawning = load(SPAWNING_PATH) as SpawnConfig
+	if reg.rules == null:
+		reg.errors.append("Missing or invalid " + RULES_PATH)
+	if reg.spawning == null:
+		reg.errors.append("Missing or invalid " + SPAWNING_PATH)
 	return reg
+
+
+func load_buildings(dir: String) -> void:
+	for res in load_resources_in(dir):
+		var def := res as BuildingDef
+		if def == null or def.id == &"":
+			errors.append("%s: not a valid BuildingDef" % res.resource_path)
+		elif buildings_by_id.has(def.id):
+			errors.append("Duplicate building id '%s'" % def.id)
+		elif def.size.x < 1 or def.size.y < 1:
+			errors.append("Building '%s' has invalid size" % def.id)
+		else:
+			buildings_by_id[def.id] = def
+	if not buildings_by_id.has(&"core"):
+		errors.append("No 'core' building defined")
+
+
+func load_enemies(dir: String) -> void:
+	for res in load_resources_in(dir):
+		var def := res as EnemyDef
+		if def == null or def.id == &"":
+			errors.append("%s: not a valid EnemyDef" % res.resource_path)
+		elif enemies_by_id.has(def.id):
+			errors.append("Duplicate enemy id '%s'" % def.id)
+		elif def.hp <= 0.0 or def.speed <= 0.0:
+			errors.append("Enemy '%s' needs positive hp and speed" % def.id)
+		else:
+			enemies_by_id[def.id] = def
+			enemies.append(def)
+
+
+## Buildings shown in the toolbar, ordered by slot.
+func toolbar_buildings() -> Array[BuildingDef]:
+	var out: Array[BuildingDef] = []
+	for def: BuildingDef in buildings_by_id.values():
+		if def.toolbar_slot > 0:
+			out.append(def)
+	out.sort_custom(func(a: BuildingDef, b: BuildingDef) -> bool: return a.toolbar_slot < b.toolbar_slot)
+	return out
 
 
 func load_terrain(dir: String) -> void:
