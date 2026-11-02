@@ -2,8 +2,8 @@ class_name SpawnConfig
 extends Resource
 ## Pacing of enemy spawning (res://data/rules/*.tres).
 
-## Seconds before the first enemy appears.
-@export var grace_period: float = 45.0
+## Preparation time in seconds before the first enemy appears (skippable).
+@export var grace_period: float = 165.0
 @export_group("Trickle")
 ## Seconds between spawns per nest at the start.
 @export var trickle_interval_start: float = 4.0
@@ -12,8 +12,8 @@ extends Resource
 ## Seconds to ramp from start to min interval.
 @export var trickle_ramp_seconds: float = 600.0
 @export_group("Assaults")
-## Game time of the first assault (seconds).
-@export var assault_first_at: float = 120.0
+## Seconds after preparation ends until the first assault.
+@export var assault_first_at: float = 75.0
 @export var assault_interval: float = 120.0
 ## Enemies per nest in the first assault.
 @export var assault_base_size: int = 10

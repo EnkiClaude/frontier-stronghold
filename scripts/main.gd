@@ -102,6 +102,9 @@ func _ready() -> void:
 	add_child(hud)
 	hud.setup(sim, clock, controller, camera)
 	hud.restart_requested.connect(func() -> void: get_tree().reload_current_scene())
+	hud.quit_requested.connect(func() -> void: get_tree().quit())
+	GameSettings.get_instance().changed.connect(_apply_settings.bind(route_view))
+	_apply_settings(route_view)
 
 	debug_overlay = DebugOverlay.new()
 	debug_overlay.name = "DebugOverlay"
@@ -125,6 +128,8 @@ func _sim_tick(tick: int) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if hud.is_menu_open():
+		return  # The menu owns pausing while it is open.
 	if event.is_action_pressed("pause"):
 		clock.paused = not clock.paused
 		_speed_changed()
@@ -132,10 +137,19 @@ func _unhandled_input(event: InputEvent) -> void:
 		_set_speed_index(_speed_index + 1)
 	elif event.is_action_pressed("speed_down"):
 		_set_speed_index(_speed_index - 1)
+	elif event.is_action_pressed("skip_preparation"):
+		sim.skip_preparation()
 	elif event.is_action_pressed("cam_home"):
 		camera.center_on(sim.core.center() * WorldGrid.TILE_PX)
 	elif event.is_action_pressed("toggle_debug"):
 		debug_overlay.visible = not debug_overlay.visible
+
+
+## Applies player options that affect views (never the simulation).
+func _apply_settings(route_view: RouteRenderer) -> void:
+	camera.pan_mult = GameSettings.get_instance().pan_speed
+	camera.zoom_mult = GameSettings.get_instance().zoom_speed
+	route_view.visible = GameSettings.get_instance().show_routes
 
 
 func _set_speed_index(i: int) -> void:

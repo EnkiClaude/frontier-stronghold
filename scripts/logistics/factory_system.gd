@@ -81,8 +81,14 @@ func _tick_drill(b: Building, dt: float) -> void:
 		if b.held < 0:
 			return
 		produced[b.held] += 1
-	if output_to_tile(front_tile(b), b.held, b):
-		b.held = -1
+	# Try every tile along the output side, rotating the start for fairness.
+	var tiles := front_tiles(b)
+	for k in tiles.size():
+		var i := (b.output_cursor + k) % tiles.size()
+		if output_to_tile(tiles[i], b.held, b):
+			b.held = -1
+			b.output_cursor = (i + 1) % tiles.size()
+			return
 
 
 # --- Crafters ----------------------------------------------------------------
@@ -205,7 +211,33 @@ func _building_at(tile: int) -> Building:
 	return buildings.get(occupancy[tile])
 
 
-## Tile directly in front of a building's output side (drills).
+## All tiles along the output (front) side of a building, e.g. both tiles in
+## front of a 2x2 drill. Tiles outside the map are skipped.
+func front_tiles(b: Building) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	var s := b.size()
+	var d := BeltNetwork.DIRS[b.rotation % 4]
+	var cells: Array[Vector2i] = []
+	match b.rotation % 4:
+		0:
+			for y in s.y:
+				cells.append(Vector2i(b.origin.x + s.x, b.origin.y + y))
+		1:
+			for x in s.x:
+				cells.append(Vector2i(b.origin.x + x, b.origin.y + s.y))
+		2:
+			for y in s.y:
+				cells.append(Vector2i(b.origin.x - 1, b.origin.y + y))
+		_:
+			for x in s.x:
+				cells.append(Vector2i(b.origin.x + x, b.origin.y - 1))
+	for c in cells:
+		if grid.in_bounds(c.x, c.y):
+			out.append(grid.idx(c.x, c.y))
+	return out
+
+
+## First tile in front of a building's output side.
 func front_tile(b: Building) -> int:
 	var s := b.size()
 	var c: Vector2i

@@ -37,7 +37,6 @@ that route as long as possible, then line it with Chain Guns. You can never
 fully block the route; the game rejects any placement that would. While you
 hover a valid wall or tower, a **cyan line** previews the route it would create.
 
-- You can't build, sell, move or excavate within 6 tiles of an enemy (the red circles).
 - Selling refunds 85% (100% within 10 s of placing). Moving costs 10%, and the tower is offline for 3 s.
 - Excavating rock (grey, speckled) opens new routes.
 - An **assault** (a large wave) arrives every 2 minutes. Kills earn credits.
@@ -46,11 +45,13 @@ hover a valid wall or tower, a **cyan line** previews the route it would create.
 gun stops firing and flashes a red ✕. To keep guns loaded, build:
 
 ```
-Mining Drill (on iron ore) → Belt → Inserter → Smelter → Inserter → Ammo Factory → Inserter → Belt → Inserter → Chain Gun
+Mining Drill (on iron ore) → Belt → Arm → Smelter → Arm → Ammo Factory → Arm → Belt ─┬─ Arm → Chain Gun
+                                                                                   ├─ Arm → Chain Gun
+                                                                                   └─ …
 ```
 
 - **Drills** drop ore onto whatever is in front of them (the arrow).
-- **Inserters** move one item from the tile behind them to the tile in front (the arrow). They only pick up what the target can use.
+- **Robotic Arms** move one item from the tile behind them to the tile in front (the arrow). They only pick up what the target can use, and belts keep flowing past them. Cyan markers show where items go in, green where they come out.
 - **Belts** dragged in a line point along the drag direction. Press R to rotate before placing.
 - One drill feeds roughly four busy Chain Guns.
 - Belts, machines and inserters don't block enemies, and enemies never damage them.
@@ -62,9 +63,11 @@ Mining Drill (on iron ore) → Belt → Inserter → Smelter → Inserter → Am
 | Pan camera | W A S D / arrow keys, middle-mouse drag, two-finger trackpad swipe, or click the minimap |
 | Zoom (towards cursor) | Mouse wheel, trackpad pinch, Page Up / Page Down, or the Zoom +/− buttons |
 | Jump to the Core | `H` (or the Core button) |
+| Start waves now (skip preparation) | `N` (or the button in the status bar) |
+| Game menu / options (HUD scale, speeds, routes, fullscreen) | `Esc` with nothing selected (or the Menu button) |
 | Select building / place (drag for lines) | Left mouse |
 | Cancel tool / sell building under cursor | Right mouse |
-| Build: Wall, Chain Gun, Belt, Inserter, Drill, Smelter, Ammo Factory | `1`–`7` (or the toolbar) |
+| Build: Wall, Chain Gun, Belt, Robotic Arm, Drill, Smelter, Ammo Factory | `1`–`7` (or the toolbar) |
 | Excavate rock | `X` |
 | Move / sell selected building | `M` / `Delete` |
 | Rotate | `R` |

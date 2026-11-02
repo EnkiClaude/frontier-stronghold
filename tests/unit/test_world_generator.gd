@@ -57,7 +57,7 @@ func test_route_exists_for_many_seeds() -> void:
 		var r := _gen(s)
 		var g: WorldGrid = r[0]
 		var reg: DataRegistry = r[1]
-		var east := PackedInt32Array([g.idx(g.width - 1, g.height / 2)])
+		var east := PackedInt32Array([g.idx(g.nest_column, g.height / 2)])
 		assert_true(Reachability.all_reachable(g, reg.walkable_lut, WorldGenerator.west_edge_cells(g), east), "seed %d has no route" % s)
 
 
@@ -66,5 +66,16 @@ func test_route_carved_when_blocked() -> void:
 	var cfg := (load(CONFIG) as WorldGenConfig).duplicate() as WorldGenConfig
 	cfg.rock_threshold = -1.0  # Everything outside the clear zones is rock.
 	var g := WorldGenerator.generate(cfg, reg, 3)
-	var east := PackedInt32Array([g.idx(g.width - 1, g.height / 2)])
+	var east := PackedInt32Array([g.idx(g.nest_column, g.height / 2)])
 	assert_true(Reachability.all_reachable(g, reg.walkable_lut, WorldGenerator.west_edge_cells(g), east))
+
+
+func test_nests_are_less_than_half_way() -> void:
+	var r := _gen(5)
+	var g: WorldGrid = r[0]
+	assert_true(g.nest_column > 0 and g.nest_column <= g.width / 2, "nest column %d" % g.nest_column)
+	var sim := GameSim.new(r[1], g, 5)
+	for at in sim.nests:
+		assert_true(absi(at.x + 1 - g.nest_column) <= 1)
+	for s in sim.path.spawn_cells:
+		assert_true(sim.path.dist[s] > 0, "nests reach the core")

@@ -280,3 +280,21 @@ Tests: 92 pass (new: camera input, tower stats, item totals and production, star
   - textures live under `assets/`;
   - the tileset builds with and without art.
 - 96 tests pass.
+
+## 2026-11-02 — v0.2.3: playtest feedback #2
+
+| Feedback | Change |
+|---|---|
+| Can't see items on belts | Bigger icons with a 6 px minimum. **Root cause found:** drills only output to one of their two front tiles, so a belt on the other tile got nothing. Drills now feed all front tiles in turn (`test_drill_outputs_to_either_front_tile`). |
+| Belts should replace for free | Placing a belt or arm over the same kind re-orients it at no cost and keeps the items on it (`test_belt_overlap_reorients_for_free`). |
+| Input/output indicators | `BuildingRenderer.draw_io` adds cyan (in) and green (out) markers, used for both buildings and ghosts. |
+| A way for a belt to feed a turret and keep going | That was already the Inserter; it was renamed **Robotic Arm** and documented. `test_arm_feeds_turret_while_belt_keeps_going` shows the arm loads exactly 3 magazines and the rest continue to the end of the belt. |
+| Remove the no-build rule near enemies | `no_build_radius` is now 0 by default; the rule code and its tests are kept (tests use a duplicated rules resource). |
+| Spawns closer, +2 min preparation, skippable | Nests at column 115 (was 251). The generator keeps a clear zone there and guarantees a route to it. Preparation is 165 s, with `skip_preparation()`. All wave pacing counts from the end of preparation. |
+| Options menu with HUD scaling | `GameSettings` autoload (saved to `user://settings.cfg`); menu with HUD scale, pan and zoom speed, routes, fullscreen. The HUD root is scaled while keeping its anchors correct. |
+
+**Issue found and fixed:** tool scripts that reference `Hud` failed to compile,
+because autoload names aren't registered yet at that point. Settings are now
+accessed via `GameSettings.get_instance()`, which works everywhere.
+
+Tests: 103 pass.

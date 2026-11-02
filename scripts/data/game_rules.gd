@@ -13,8 +13,9 @@ extends Resource
 @export_range(0.0, 1.0) var relocate_fee: float = 0.10
 ## Seconds a relocated structure is offline.
 @export var relocate_time: float = 3.0
-## No construction changes within this many tiles of a living enemy.
-@export var no_build_radius: float = 6.0
+## No construction changes within this many tiles of a living enemy
+## (anti-juggling). 0 disables the rule (default, per playtest feedback).
+@export var no_build_radius: float = 0.0
 ## Towers fire without ammunition (Phase 1 behaviour; tests/debug).
 @export var infinite_ammo: bool = false
 @export_group("Excavation")

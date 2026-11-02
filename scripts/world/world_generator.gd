@@ -10,6 +10,7 @@ extends RefCounted
 ## starter ore near the Core and a walkable route from west to east.
 static func generate(cfg: WorldGenConfig, reg: DataRegistry, seed_value: int) -> WorldGrid:
 	var grid := WorldGrid.new(cfg.width, cfg.height)
+	grid.nest_column = nest_column(cfg)
 	var rng := SimRng.new(seed_value)
 	fill_columns(grid, cfg, reg, rng, 0, cfg.width)
 	_place_starter_patches(grid, cfg, reg, rng.fork("starter"))
@@ -35,10 +36,12 @@ static func fill_columns(grid: WorldGrid, cfg: WorldGenConfig, reg: DataRegistry
 		ore_thresholds.append(spawn.threshold)
 
 	var h := grid.height
-	var nest_start := cfg.width - cfg.nest_clear_cols
+	var nest_x := nest_column(cfg)
+	var nest_start := nest_x - cfg.nest_clear_cols / 2
+	var nest_end := nest_x + cfg.nest_clear_cols / 2
 	var terrain := grid.terrain
 	for x in range(x_from, x_to):
-		var in_clear := x < cfg.core_clear_cols or x >= nest_start
+		var in_clear := x < cfg.core_clear_cols or (x >= nest_start and x < nest_end)
 		for y in h:
 			var code := c_ground
 			if y == 0 or y == h - 1:
@@ -64,17 +67,23 @@ static func ensure_route(grid: WorldGrid, cfg: WorldGenConfig, reg: DataRegistry
 	var c_bedrock := reg.terrain_code(&"bedrock")
 	var h := grid.height
 	var west := west_edge_cells(grid)
-	var east := PackedInt32Array([grid.idx(grid.width - 1, h / 2)])
+	var target_x := grid.nest_column if grid.nest_column >= 0 else grid.width - 1
+	var east := PackedInt32Array([grid.idx(target_x, h / 2)])
 	if Reachability.all_reachable(grid, reg.walkable_lut, west, east):
 		return
 	var y := h / 2
-	for x in range(cfg.core_clear_cols - 1, grid.width):
+	for x in range(cfg.core_clear_cols - 1, target_x + 1):
 		y = clampi(y + rng.next_int_range(-1, 1), 2, h - 3)
 		for dy in range(-1, 2):
 			var i := grid.idx(x, y + dy)
 			var code := grid.terrain[i]
 			if reg.walkable_lut[code] == 0 and code != c_bedrock:
 				grid.terrain[i] = c_ground
+
+
+## Column of the first nests, kept inside the map.
+static func nest_column(cfg: WorldGenConfig) -> int:
+	return clampi(cfg.nest_column, cfg.core_clear_cols + cfg.nest_clear_cols, cfg.width - 6)
 
 
 ## Indices of the walkable-candidate cells in the first column (Core side).

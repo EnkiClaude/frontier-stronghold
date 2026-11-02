@@ -20,13 +20,17 @@ var world_rect := Rect2()
 ## Extra space allowed beyond the world edge, in world units.
 @export var edge_margin: float = 64.0
 
+## Player option multipliers (set from Settings by Main).
+var pan_mult: float = 1.0
+var zoom_mult: float = 1.0
+
 var _dragging := false
 
 
 func _process(delta: float) -> void:
 	var dir := Input.get_vector("cam_left", "cam_right", "cam_up", "cam_down")
 	if dir != Vector2.ZERO:
-		position += dir * pan_speed * delta / zoom.x
+		position += dir * pan_speed * pan_mult * delta / zoom.x
 		clamp_to_world()
 
 
@@ -37,13 +41,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		var mb := event as InputEventMouseButton
 		# factor is 0 on devices that don't report it: treat as one notch.
 		var notches := mb.factor if mb.factor > 0.0 else 1.0
-		var f := pow(zoom_step, minf(notches, 3.0))
+		var f := pow(zoom_step, minf(notches, 3.0) * zoom_mult)
 		zoom_at(mb.position, f if mb.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / f)
 	elif event is InputEventMagnifyGesture:
 		var mg := event as InputEventMagnifyGesture
-		zoom_at(mg.position, mg.factor)
+		zoom_at(mg.position, pow(mg.factor, zoom_mult))
 	elif event is InputEventPanGesture:
-		position += (event as InputEventPanGesture).delta * 12.0 / zoom.x
+		position += (event as InputEventPanGesture).delta * 12.0 * pan_mult / zoom.x
 		clamp_to_world()
 	elif event is InputEventKey and event.is_action_pressed("cam_zoom_in"):
 		zoom_by(zoom_step)

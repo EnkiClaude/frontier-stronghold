@@ -9,6 +9,7 @@ extends CanvasLayer
 ## All buttons work with mouse now and touch later.
 
 signal restart_requested
+signal quit_requested
 
 const PANEL_BG := Color(0.03, 0.05, 0.08, 0.88)
 const PANEL_BORDER := Color(0.3, 0.9, 1.0, 0.35)
@@ -36,6 +37,12 @@ var _toast_time := 0.0
 var _hint: Label
 var _game_over: PanelContainer
 var _game_over_label: Label
+## Everything lives under this node so the whole HUD can be scaled (UI scale option).
+var _root: Control
+var _skip_btn: Button
+var _menu: PanelContainer
+var _menu_backdrop: ColorRect
+var _paused_before_menu := false
 
 ## produced-item snapshots, one per game second, for per-minute rates.
 var _history: Array[PackedInt32Array] = []
@@ -51,7 +58,9 @@ func setup(game: GameSim, sim_clock: SimClock, ctrl: BuildController, cam: Camer
 	_build()
 	controller.message.connect(show_message)
 	controller.changed.connect(_refresh_tools)
+	controller.menu_requested.connect(toggle_menu)
 	_refresh_tools()
+	apply_ui_scale()
 
 
 func show_message(text: String) -> void:
@@ -66,8 +75,10 @@ func _process(delta: float) -> void:
 	_sample_production()
 	var assault := "ASSAULT #%d!" % sim.spawner.assault_number() if sim.spawner.is_assault_active() \
 		else "Next assault: %ds" % ceili(sim.seconds_to_assault())
-	if sim.time < sim.reg.spawning.grace_period:
-		assault = "Enemies arrive in %ds — build your maze!" % ceili(sim.reg.spawning.grace_period - sim.time)
+	var prep := sim.in_preparation()
+	if prep:
+		assault = "Enemies arrive in %s" % _clock_text(sim.spawner.waves_start - sim.time + 0.99)
+	_skip_btn.visible = prep and not sim.game_over
 	var speed := "PAUSED" if clock.paused else "%dx" % int(clock.speed)
 	_status.text = "Credits %d    Core %d/%d    Enemies %d    Kills %d    %s    %s    [%s]    v%s" % [
 		sim.credits, sim.core_hp, sim.rules.core_hp, sim.enemies.count, sim.kills, assault, _clock_text(sim.time), speed,
@@ -251,17 +262,28 @@ func _inv_text(inv: Dictionary) -> String:
 # --- Layout ------------------------------------------------------------------
 
 func _build() -> void:
-	var root := Control.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(root)
+	_root = Control.new()
+	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_root)
+	var root := _root
+	get_viewport().size_changed.connect(apply_ui_scale)
+	GameSettings.get_instance().changed.connect(apply_ui_scale)
 
-	# Top status bar.
+	# Top status bar (+ "start waves" button during preparation).
 	var top := _panel()
 	top.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	var top_row := HBoxContainer.new()
+	top_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	top_row.add_theme_constant_override("separation", 16)
 	_status = _label(17)
-	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	top.add_child(_status)
+	_status.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	top_row.add_child(_status)
+	_skip_btn = _button("Start waves now [N]")
+	_skip_btn.custom_minimum_size.y = 30
+	_skip_btn.tooltip_text = "Skip the rest of the preparation time."
+	_skip_btn.pressed.connect(func() -> void: sim.skip_preparation())
+	top_row.add_child(_skip_btn)
+	top.add_child(top_row)
 	root.add_child(top)
 
 	# Left: resources.
@@ -308,21 +330,24 @@ func _build() -> void:
 	_info_panel.visible = false
 	root.add_child(_info_panel)
 
-	# Bottom centre: hint + toolbar.
+	# Bottom left: hint + toolbar. Spans up to the minimap and wraps into
+	# several rows when the HUD is scaled up.
 	var bottom := VBoxContainer.new()
 	bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bottom.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	bottom.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	bottom.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	bottom.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	bottom.offset_left = 10
+	bottom.offset_right = -330  # Room for the minimap.
 	bottom.offset_bottom = -10
-	bottom.offset_left = -170  # Shift left of centre to leave room for the minimap.
-	bottom.offset_right = -170
+	bottom.alignment = BoxContainer.ALIGNMENT_END
 	_hint = _label(14)
-	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	bottom.add_child(_hint)
 	var bar := _panel()
-	var toolbar := HBoxContainer.new()
-	toolbar.add_theme_constant_override("separation", 6)
+	bar.size_flags_horizontal = Control.SIZE_FILL
+	var toolbar := HFlowContainer.new()
+	toolbar.add_theme_constant_override("h_separation", 6)
+	toolbar.add_theme_constant_override("v_separation", 6)
 	bar.add_child(toolbar)
 	bottom.add_child(bar)
 	root.add_child(bottom)
@@ -348,7 +373,8 @@ func _build() -> void:
 	cam_row.alignment = BoxContainer.ALIGNMENT_END
 	for spec in [["Zoom +", func() -> void: camera.zoom_by(1.3)], ["Zoom −", func() -> void: camera.zoom_by(1.0 / 1.3)],
 			["Core [H]", func() -> void: camera.center_on(sim.core.center() * WorldGrid.TILE_PX)],
-			["Credits", func() -> void: _credits.visible = not _credits.visible]]:
+			["Credits", func() -> void: _credits.visible = not _credits.visible],
+			["Menu [Esc]", func() -> void: toggle_menu()]]:
 		var b := _button(spec[0])
 		b.pressed.connect(spec[1])
 		cam_row.add_child(b)
@@ -379,6 +405,8 @@ func _build() -> void:
 	_credits.add_child(cr_box)
 	_credits.visible = false
 	root.add_child(_credits)
+
+	_build_menu(root)
 
 	# Toast.
 	_toast = _label(22)
@@ -419,6 +447,119 @@ func _refresh_tools() -> void:
 			active = controller.mode == BuildController.Mode.EXCAVATE
 		btn.modulate = Color(1.0, 0.85, 0.3) if active else Color.WHITE
 	_refresh_info()
+
+
+## Scales the whole HUD by the "UI scale" option, keeping anchors correct.
+func apply_ui_scale() -> void:
+	if _root == null:
+		return
+	var s := clampf(GameSettings.get_instance().ui_scale, 0.75, 2.0)
+	_root.scale = Vector2(s, s)
+	_root.size = get_viewport().get_visible_rect().size / s
+
+
+func is_menu_open() -> bool:
+	return _menu != null and _menu.visible
+
+
+## Opens/closes the game menu; the game is paused while it is open.
+func toggle_menu() -> void:
+	if not _menu.visible:
+		_paused_before_menu = clock.paused
+		clock.paused = true
+		_menu.visible = true
+		_menu_backdrop.visible = true
+	else:
+		_menu.visible = false
+		_menu_backdrop.visible = false
+		_credits.visible = false
+		clock.paused = _paused_before_menu
+
+
+func _build_menu(root: Control) -> void:
+	# Dims the game and swallows clicks while the menu is open.
+	_menu_backdrop = ColorRect.new()
+	_menu_backdrop.color = Color(0, 0, 0, 0.45)
+	_menu_backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_menu_backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
+	_menu_backdrop.visible = false
+	root.add_child(_menu_backdrop)
+	_menu = _panel()
+	_menu.set_anchors_preset(Control.PRESET_CENTER)
+	_menu.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_menu.grow_vertical = Control.GROW_DIRECTION_BOTH
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 10)
+	box.custom_minimum_size = Vector2(440, 0)
+	var title := _label(24)
+	title.text = "Paused"
+	title.add_theme_color_override("font_color", ACCENT)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(title)
+	var actions := HBoxContainer.new()
+	actions.alignment = BoxContainer.ALIGNMENT_CENTER
+	for spec in [["Resume", func() -> void: toggle_menu()],
+			["Restart", func() -> void: restart_requested.emit()],
+			["Credits", func() -> void:
+				_credits.visible = true
+				_credits.move_to_front()],
+			["Quit", func() -> void: quit_requested.emit()]]:
+		var b := _button(spec[0])
+		b.custom_minimum_size.x = 96
+		b.pressed.connect(spec[1])
+		actions.add_child(b)
+	box.add_child(actions)
+	box.add_child(HSeparator.new())
+	var opts := _label(18)
+	opts.text = "Options"
+	opts.add_theme_color_override("font_color", ACCENT)
+	box.add_child(opts)
+	box.add_child(_slider_row("HUD scale", "ui_scale", 0.75, 2.0, 0.05))
+	box.add_child(_slider_row("Camera pan speed", "pan_speed", 0.5, 2.5, 0.1))
+	box.add_child(_slider_row("Zoom sensitivity", "zoom_speed", 0.3, 2.5, 0.1))
+	box.add_child(_check_row("Show enemy routes", "show_routes"))
+	box.add_child(_check_row("Fullscreen", "fullscreen"))
+	var note := _label(13)
+	note.text = "Options are saved automatically."
+	note.modulate = Color(1, 1, 1, 0.6)
+	box.add_child(note)
+	_menu.add_child(box)
+	_menu.visible = false
+	root.add_child(_menu)
+
+
+func _slider_row(text: String, key: String, lo: float, hi: float, step: float) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	var name_label := _label(15)
+	name_label.text = text
+	name_label.custom_minimum_size.x = 170
+	row.add_child(name_label)
+	var slider := HSlider.new()
+	slider.min_value = lo
+	slider.max_value = hi
+	slider.step = step
+	slider.value = GameSettings.get_instance().get(key)
+	slider.custom_minimum_size = Vector2(190, 28)
+	slider.focus_mode = Control.FOCUS_NONE
+	row.add_child(slider)
+	var value_label := _label(15)
+	value_label.custom_minimum_size.x = 60
+	value_label.text = "%d%%" % roundi(slider.value * 100.0)
+	row.add_child(value_label)
+	# Apply on release so the HUD doesn't rescale under the cursor while dragging.
+	slider.value_changed.connect(func(v: float) -> void: value_label.text = "%d%%" % roundi(v * 100.0))
+	slider.drag_ended.connect(func(_changed: bool) -> void: GameSettings.get_instance().set_option(key, slider.value))
+	return row
+
+
+func _check_row(text: String, key: String) -> CheckBox:
+	var check := CheckBox.new()
+	check.text = text
+	check.button_pressed = GameSettings.get_instance().get(key)
+	check.focus_mode = Control.FOCUS_NONE
+	check.add_theme_font_size_override("font_size", 15)
+	check.toggled.connect(func(on: bool) -> void: GameSettings.get_instance().set_option(key, on))
+	return check
 
 
 func _read_credits() -> String:

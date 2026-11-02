@@ -25,6 +25,7 @@ static func default_bindings() -> Dictionary:
 		"cam_zoom_out": [_mouse(MOUSE_BUTTON_WHEEL_DOWN), _key(KEY_PAGEDOWN)],
 		"cam_drag": [_mouse(MOUSE_BUTTON_MIDDLE)],
 		"cam_home": [_key(KEY_H)],
+		"skip_preparation": [_key(KEY_N)],
 		"primary": [_mouse(MOUSE_BUTTON_LEFT)],
 		"secondary": [_mouse(MOUSE_BUTTON_RIGHT)],
 		"rotate": [_key(KEY_R)],

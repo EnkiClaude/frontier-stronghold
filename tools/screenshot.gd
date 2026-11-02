@@ -52,6 +52,24 @@ func _initialize() -> void:
 		towers[0].ammo = 0
 		towers[1].ammo = 8
 		cam.position = Vector2(34, 69) * WorldGrid.TILE_PX
+	if scenario == "scale":
+		GameSettings.get_instance().set_option("ui_scale", 1.5)
+	if scenario == "menu":
+		var hud: Hud = main.get("hud")
+		hud.toggle_menu()
+	if scenario == "io":
+		sim.credits = 100000
+		var ground := sim.reg.terrain_code(&"ground")
+		for x in range(9, 64):
+			for y in range(64, 80):
+				sim.grid.set_terrain(x, y, ground)
+				sim.path.terrain_changed(sim.grid.idx(x, y))
+		SupplyScenario.build_defense_line(sim, Vector2i(10, 66), 28, 4)
+		MazeScenario.run(sim, seconds)
+		cam.position = Vector2(22, 69) * WorldGrid.TILE_PX
+		var ctrl: BuildController = main.get("controller")
+		ctrl.select_build(sim.reg.buildings_by_id[&"mining_drill"])
+		ctrl.mouse_override = Vector2(17.0, 73.0)
 	if scenario == "enemy" and sim.enemies.count == 0:
 		MazeScenario.run(sim, seconds)
 	if scenario == "enemy" and sim.enemies.count > 0:
@@ -62,5 +80,7 @@ func _initialize() -> void:
 	for i in 20:
 		await process_frame
 	root.get_texture().get_image().save_png(out)
+	if scenario == "scale":
+		GameSettings.get_instance().set_option("ui_scale", 1.0)  # Don't leave the test value behind.
 	print("saved ", out, " | enemies=", sim.enemies.count, " kills=", sim.kills, " leaked=", sim.leaked, " core=", sim.core_hp)
 	quit(0)

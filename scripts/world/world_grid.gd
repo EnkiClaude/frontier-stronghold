@@ -14,6 +14,8 @@ const TILE_PX := 32
 
 signal terrain_changed(cell: Vector2i)
 
+## Column where the enemy nests sit (set by the generator; -1 = east edge).
+var nest_column: int = -1
 var width: int = 0
 var height: int = 0
 ## Terrain code per tile (see DataRegistry / TerrainDef.code).

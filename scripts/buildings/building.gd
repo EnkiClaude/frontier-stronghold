@@ -29,6 +29,8 @@ var progress: float = 0.0
 var crafting := false
 ## Item held by an inserter hand or waiting in a drill (-1 = none).
 var held: int = -1
+## Drill: which front tile to try first next time (round robin).
+var output_cursor: int = 0
 
 # Tower runtime state.
 ## Rounds loaded.

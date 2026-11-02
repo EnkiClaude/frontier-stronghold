@@ -7,8 +7,8 @@
 script = ExtResource("1_def")
 id = &"inserter"
 kind = &"inserter"
-display_name = "Inserter"
-description = "Moves one item at a time from the tile behind it to the tile in front (arrow). Only picks up what the target can use."
+display_name = "Robotic Arm"
+description = "Grabs items from the belt (or machine) behind it and loads them into the turret, machine or belt in front (arrow). The belt keeps flowing past, so one belt can feed many turrets: put one arm next to each turret."
 size = Vector2i(1, 1)
 blocks_path = false
 cost = 10

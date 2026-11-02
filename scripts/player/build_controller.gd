@@ -7,6 +7,8 @@ extends Node2D
 signal message(text: String)
 ## Tool or selection changed (HUD refreshes its buttons and panels).
 signal changed
+## Esc pressed with nothing to cancel: open the game menu.
+signal menu_requested
 
 enum Mode { SELECT, BUILD, EXCAVATE, MOVE }
 
@@ -134,8 +136,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("rotate"):
 		rotation_steps = (rotation_steps + 1) % 4
 	elif event.is_action_pressed("cancel"):
-		cancel()
-		_set_selected(null)
+		if mode == Mode.SELECT and selected == null:
+			menu_requested.emit()
+		else:
+			cancel()
+			_set_selected(null)
 	elif event.is_action_pressed("tool_excavate"):
 		select_excavate()
 	elif event.is_action_pressed("sell_selected"):
@@ -326,6 +331,13 @@ func _draw() -> void:
 		var dir_def: BuildingDef = build_def if mode == Mode.BUILD else (selected.def if mode == Mode.MOVE and selected != null else null)
 		if dir_def != null and dir_def.directional:
 			_draw_chevron(rect, g[3])
+		if dir_def != null and (dir_def.kind == &"drill" or dir_def.kind == &"inserter" or dir_def.kind == &"crafter" or dir_def.tower != null):
+			# Show where the ghost would take items in / put them out.
+			var probe := Building.new()
+			probe.def = dir_def
+			probe.origin = g[0]
+			probe.rotation = g[3]
+			BuildingRenderer.draw_io(self, sim, probe)
 	var range_def: BuildingDef = build_def if mode == Mode.BUILD else (selected.def if selected != null else null)
 	if range_def != null and range_def.tower != null:
 		var center: Vector2
@@ -335,7 +347,7 @@ func _draw() -> void:
 			center = Vector2(_anchor()) + Vector2(_footprint()) * 0.5
 		draw_arc(center, range_def.tower.range_tiles, 0.0, TAU, 64, Color(1, 1, 1, 0.5), 0.06)
 	# Show the no-build radius of enemies near the cursor while building.
-	if mode != Mode.SELECT:
+	if mode != Mode.SELECT and sim.rules.no_build_radius > 0.0:
 		var r := sim.rules.no_build_radius
 		var shown := 0
 		for i in sim.spatial.query(sim.enemies, _mouse.x, _mouse.y, r + 2.0):

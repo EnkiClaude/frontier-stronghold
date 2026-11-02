@@ -11,8 +11,10 @@ extends Resource
 @export_group("Zones")
 ## Columns at the west edge kept clear for the Core and starter base.
 @export var core_clear_cols: int = 28
-## Columns at the east edge kept clear for enemy nests.
+## Width of the clear zone around the enemy nests.
 @export var nest_clear_cols: int = 12
+## Column of the first enemy nests (the frontier). Later sectors push it east.
+@export var nest_column: int = 115
 
 @export_group("Rock")
 @export var rock_frequency: float = 0.035

@@ -121,3 +121,34 @@ func test_selling_belt_unregisters_it() -> void:
 	assert_true(sim.belts.has_belt(sim.grid.idx(20, 4)))
 	sim.sell(sim.building_at(Vector2i(20, 4)).id)
 	assert_false(sim.belts.has_belt(sim.grid.idx(20, 4)))
+
+
+func test_drill_outputs_to_either_front_tile() -> void:
+	var sim := SimHelpers.open_sim()
+	_ore(sim, 20, 4)
+	sim.place(&"mining_drill", Vector2i(20, 4), 0)
+	# Belt only in front of the drill's SECOND row (y = 5), heading east.
+	for x in range(22, 26):
+		sim.place(&"conveyor_belt", Vector2i(x, 5), 0)
+	SimHelpers.run(sim, 8.0)
+	assert_true(sim.belts.item_count() >= 5, "drill must use the lower front tile too")
+
+
+func test_arm_feeds_turret_while_belt_keeps_going() -> void:
+	var sim := SimHelpers.open_sim()
+	# Belt runs east along y=4 past a turret at (24..25, 6..7); one arm at (24, 5) facing south.
+	for x in range(20, 32):
+		sim.place(&"conveyor_belt", Vector2i(x, 4), 0)
+	sim.place(&"inserter", Vector2i(24, 5), 1)
+	sim.place(&"chain_gun", Vector2i(24, 6))
+	SimHelpers.finish_construction(sim)
+	var tower := sim.building_at(Vector2i(24, 6))
+	tower.ammo = 70
+	var mag := sim.reg.item_index(&"ammo_magazine")
+	for k in 6:
+		sim.belts.insert_at_tile(sim.grid.idx(20 + k / 2, 4), mag, 0.1 + 0.5 * (k % 2))
+	SimHelpers.run(sim, 12.0)
+	assert_eq(tower.ammo, 100, "arm loads exactly what the turret can take (3 magazines)")
+	assert_eq(sim.belts.item_count(), 3, "the rest flows past to the end of the belt")
+	var line := sim.belts.lines[sim.belts.line_at[sim.grid.idx(31, 4)]]
+	assert_true(line.pos[line.pos.size() - 1] > 11.0, "leftovers reached the far end")

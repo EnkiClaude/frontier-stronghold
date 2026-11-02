@@ -100,8 +100,21 @@ func test_relocate_onto_overlapping_footprint() -> void:
 	assert_eq(sim.relocate(b.id, Vector2i(31, 4)), "", "may overlap its own old footprint")
 
 
+func _with_radius(sim: GameSim, r: float) -> void:
+	sim.rules = sim.rules.duplicate()  # Don't modify the shared resource.
+	sim.rules.no_build_radius = r
+
+
+func test_building_near_enemies_allowed_by_default() -> void:
+	var sim := SimHelpers.open_sim()
+	assert_eq(sim.rules.no_build_radius, 0.0, "playtest feedback: rule disabled")
+	SimHelpers.spawn_at(sim, &"swarm", 30, 12)
+	assert_eq(sim.place(&"wall", Vector2i(32, 12)), "")
+
+
 func test_no_build_near_enemies() -> void:
 	var sim := SimHelpers.open_sim()
+	_with_radius(sim, 6.0)
 	SimHelpers.spawn_at(sim, &"swarm", 30, 12)
 	assert_eq(sim.place(&"wall", Vector2i(33, 12)), GameSim.ERR_ENEMIES)
 	assert_eq(sim.place(&"wall", Vector2i(30, 3)), "", "far enough away (9 tiles)")
@@ -109,6 +122,7 @@ func test_no_build_near_enemies() -> void:
 
 func test_sell_blocked_near_enemies() -> void:
 	var sim := SimHelpers.open_sim()
+	_with_radius(sim, 6.0)
 	sim.place(&"wall", Vector2i(30, 12))
 	var id: int = sim.building_at(Vector2i(30, 12)).id
 	SimHelpers.spawn_at(sim, &"swarm", 32, 12)
@@ -220,6 +234,47 @@ func test_deterministic_runs() -> void:
 	for sim: GameSim in [a, b]:
 		sim.place(&"chain_gun", Vector2i(30, 10))
 		sim.place(&"wall", Vector2i(40, 5))
+		sim.skip_preparation()
 		SimHelpers.run(sim, 60.0)
 	assert_true(a.enemies.count > 0 or a.kills > 0, "something happened")
 	assert_eq(a.state_hash(), b.state_hash())
+
+
+func test_preparation_can_be_skipped() -> void:
+	var sim := SimHelpers.open_sim()
+	assert_true(sim.reg.spawning.grace_period >= 160.0, "playtest feedback: ~2:45 of preparation")
+	SimHelpers.run(sim, 10.0)
+	assert_true(sim.in_preparation())
+	var first_assault := sim.spawner.next_assault_at
+	sim.skip_preparation()
+	assert_false(sim.in_preparation())
+	sim.tick()
+	assert_eq(sim.enemies.count, 2, "one enemy per nest right away")
+	assert_true(sim.spawner.next_assault_at < first_assault, "assault schedule moves forward too")
+	assert_true(absf(sim.spawner.next_assault_at - (sim.time + sim.reg.spawning.assault_first_at)) < 0.1)
+
+
+func test_enemy_hp_scaling_starts_after_preparation() -> void:
+	var sim := SimHelpers.open_sim()
+	SimHelpers.run(sim, sim.reg.spawning.grace_period + 0.5)
+	assert_true(sim.enemies.count > 0)
+	var def: EnemyDef = sim.reg.enemies[sim.enemies.type[0]]
+	assert_true(sim.enemies.max_hp[0] < def.hp * 1.05, "prep time must not inflate enemy HP")
+
+
+func test_belt_overlap_reorients_for_free() -> void:
+	var sim := SimHelpers.open_sim()
+	sim.place(&"conveyor_belt", Vector2i(20, 4), 0)
+	SimHelpers.finish_construction(sim)
+	var b := sim.building_at(Vector2i(20, 4))
+	sim.belts.insert_at_tile(sim.grid.idx(20, 4), 0)
+	var credits := sim.credits
+	assert_eq(sim.check_place(&"conveyor_belt", Vector2i(20, 4), 1), "", "ghost shows it as valid")
+	assert_eq(sim.place(&"conveyor_belt", Vector2i(20, 4), 1), "")
+	assert_eq(sim.credits, credits, "no cost")
+	assert_eq(sim.building_at(Vector2i(20, 4)), b, "same belt, not a new one")
+	assert_eq(b.rotation, 1)
+	assert_eq(sim.belts.dir_of[sim.grid.idx(20, 4)], 1)
+	assert_eq(sim.belts.item_count(), 1, "items on it are kept")
+	assert_eq(sim.place(&"conveyor_belt", Vector2i(20, 4), 1), "", "same direction: harmless no-op")
+	assert_eq(sim.place(&"wall", Vector2i(20, 4)), GameSim.ERR_OCCUPIED, "other buildings still can't overlap")

@@ -4,11 +4,11 @@
 
 [resource]
 script = ExtResource("1_spawn")
-grace_period = 45.0
+grace_period = 165.0
 trickle_interval_start = 4.0
 trickle_interval_min = 1.2
 trickle_ramp_seconds = 600.0
-assault_first_at = 120.0
+assault_first_at = 75.0
 assault_interval = 120.0
 assault_base_size = 10
 assault_size_growth = 4

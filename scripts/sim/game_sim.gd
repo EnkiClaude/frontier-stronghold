@@ -111,7 +111,7 @@ func _place_core() -> void:
 
 
 func _place_nests() -> void:
-	var x := grid.width - 5
+	var x := grid.nest_column - NEST_SIZE.x / 2 if grid.nest_column >= 0 else grid.width - 5
 	var spawn := PackedInt32Array()
 	for frac in [1.0 / 3.0, 2.0 / 3.0]:
 		var at := Vector2i(x, int(grid.height * frac) - NEST_SIZE.y / 2)
@@ -328,6 +328,8 @@ func _cleanup_enemies() -> void:
 func check_place(def_id: StringName, at: Vector2i, rot: int = 0, moving: Building = null, skip_path: bool = false) -> String:
 	if game_over:
 		return ERR_GAME_OVER
+	if moving == null and _replaceable(def_id, at) != null:
+		return ""  # Free re-orientation (see place()).
 	var def: BuildingDef = reg.buildings_by_id.get(def_id)
 	if def == null or def.id == &"core":
 		return ERR_UNKNOWN
@@ -363,7 +365,11 @@ func check_place(def_id: StringName, at: Vector2i, rot: int = 0, moving: Buildin
 
 
 ## Places a new structure (pays its cost). Returns "" on success.
+## Placing a belt or arm over the same kind re-orients it for free.
 func place(def_id: StringName, at: Vector2i, rot: int = 0) -> String:
+	var existing := _replaceable(def_id, at)
+	if existing != null and not game_over:
+		return _reorient(existing, rot)
 	var err := check_place(def_id, at, rot)
 	if err != "":
 		return err
@@ -380,6 +386,35 @@ func place(def_id: StringName, at: Vector2i, rot: int = 0) -> String:
 			path.set_reserved(c, true)
 	_pending.append(b)
 	return ""
+
+
+## Existing 1x1 directional building of the same type at [param at] (belts,
+## arms) that a new placement would simply re-orient, or null.
+func _replaceable(def_id: StringName, at: Vector2i) -> Building:
+	var b := building_at(at)
+	if b == null or b.def.id != def_id or not b.def.directional or b.def.size != Vector2i.ONE:
+		return null
+	return b
+
+
+func _reorient(b: Building, rot: int) -> String:
+	rot = posmod(rot, 4)
+	if b.rotation == rot:
+		return ""
+	b.rotation = rot
+	if b.def.kind == &"belt" and b.is_active():
+		belts.add_belt(b.cells[0], rot)  # Items on the tile are kept.
+	structures_version += 1
+	return ""
+
+
+## Ends the preparation phase now; enemies start spawning immediately.
+func skip_preparation() -> void:
+	spawner.skip_preparation(time)
+
+
+func in_preparation() -> bool:
+	return spawner.in_preparation(time)
 
 
 ## Credits returned if [param b] is sold now.
@@ -519,6 +554,8 @@ func _vacate(b: Building) -> void:
 
 
 func _enemies_near(rect: Rect2) -> bool:
+	if rules.no_build_radius <= 0.0:
+		return false
 	return spatial.any_near_rect(enemies, rect, rules.no_build_radius)
 
 

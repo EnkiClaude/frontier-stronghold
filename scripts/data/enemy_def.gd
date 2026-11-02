@@ -22,5 +22,5 @@ extends Resource
 @export_group("Spawning")
 ## Relative chance among unlocked enemy types.
 @export var spawn_weight: float = 1.0
-## Seconds of game time before this type starts appearing.
+## Seconds after preparation ends before this type starts appearing.
 @export var unlock_time: float = 0.0

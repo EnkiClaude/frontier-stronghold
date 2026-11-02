@@ -12,6 +12,10 @@ var sim: GameSim
 var selected_id: int = 0
 
 const NEST_COLOR := Color(0.55, 0.12, 0.12)
+const IN_COLOR := Color(0.35, 0.85, 1.0)
+const OUT_COLOR := Color(0.35, 1.0, 0.45)
+## Input/output markers are drawn only when tiles are at least this big on screen.
+const IO_MIN_PX := 14.0
 const OUTLINE := Color(0, 0, 0, 0.55)
 
 
@@ -35,6 +39,7 @@ func _draw() -> void:
 		var left: float = float(sim.excavations[tile]) / (sim.rules.excavate_time * sim.tick_rate)
 		draw_rect(r.grow(-0.08), Color(1.0, 0.8, 0.2, 0.9), false, 0.1)
 		draw_rect(Rect2(r.position + Vector2(0.15, 0.75), Vector2(0.7 * (1.0 - left), 0.12)), Color(1.0, 0.8, 0.2))
+	var show_io := get_global_transform_with_canvas().get_scale().x >= IO_MIN_PX
 	for b: Building in sim.buildings.values():
 		var r := Rect2(b.origin, b.size())
 		var tex := DataRegistry.art(b.def.texture)
@@ -43,6 +48,54 @@ func _draw() -> void:
 		else:
 			_draw_fallback(b, r)
 		_draw_overlays(b, r, tex != null)
+		if show_io:
+			draw_io(self, sim, b)
+
+
+## Draws where a building takes items in (cyan) and puts them out (green).
+## Static so the build controller can reuse it for placement ghosts.
+static func draw_io(canvas: CanvasItem, game: GameSim, b: Building) -> void:
+	var r := Rect2(b.origin, b.size())
+	match b.def.kind:
+		&"drill":
+			var d := Vector2(BeltNetwork.DIRS[b.rotation % 4])
+			for t in game.factory.front_tiles(b):
+				io_arrow(canvas, Vector2(game.grid.cell_of(t)) + Vector2(0.5, 0.5) - d * 0.22, d, OUT_COLOR)
+		&"inserter":
+			var d := Vector2(BeltNetwork.DIRS[b.rotation % 4])
+			var c := r.get_center()
+			io_arrow(canvas, c - d * 0.78, d, IN_COLOR)
+			io_arrow(canvas, c + d * 0.78, d, OUT_COLOR)
+		&"crafter":
+			var ins: Array = b.def.recipe.inputs.keys()
+			var outs: Array = b.def.recipe.outputs.keys()
+			for k in ins.size():
+				_badge(canvas, game, Rect2(r.position + Vector2(0.08 + k * 0.5, 0.08), Vector2(0.44, 0.44)), StringName(ins[k]), IN_COLOR)
+			for k in outs.size():
+				_badge(canvas, game, Rect2(Vector2(r.end.x - 0.52 - k * 0.5, r.position.y + 0.08), Vector2(0.44, 0.44)), StringName(outs[k]), OUT_COLOR)
+	if b.def.tower != null and b.def.tower.ammo_item != &"":
+		_badge(canvas, game, Rect2(r.position + Vector2(0.06, 0.06), Vector2(0.42, 0.42)), b.def.tower.ammo_item, IN_COLOR)
+
+
+## Small triangle at [param at] pointing along [param dir].
+static func io_arrow(canvas: CanvasItem, at: Vector2, dir: Vector2, col: Color) -> void:
+	var side := Vector2(-dir.y, dir.x)
+	var pts := PackedVector2Array([at + dir * 0.16, at - dir * 0.12 + side * 0.15, at - dir * 0.12 - side * 0.15])
+	canvas.draw_colored_polygon(pts, col)
+	canvas.draw_polyline(PackedVector2Array([pts[0], pts[1], pts[2], pts[0]]), Color(0, 0, 0, 0.6), 0.03)
+
+
+static func _badge(canvas: CanvasItem, game: GameSim, r: Rect2, item_id: StringName, frame: Color) -> void:
+	var idx := game.reg.item_index(item_id)
+	if idx < 0:
+		return
+	canvas.draw_rect(r.grow(0.03), Color(0, 0, 0, 0.75))
+	var icon := DataRegistry.art(game.reg.items[idx].icon)
+	if icon != null:
+		canvas.draw_texture_rect(icon, r, false)
+	else:
+		canvas.draw_rect(r.grow(-0.08), game.reg.items[idx].color)
+	canvas.draw_rect(r.grow(0.03), frame, false, 0.04)
 
 
 ## Draws a chevron pointing along [param rotation] inside [param r].
