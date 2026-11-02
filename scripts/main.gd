@@ -36,6 +36,8 @@ static func version() -> String:
 
 func _ready() -> void:
 	get_window().title = "Frontier Stronghold v%s" % version()
+	if OS.get_cmdline_args().has("--no-art") or OS.get_cmdline_user_args().has("--no-art"):
+		DataRegistry.art_enabled = false  # Fallback colours only (debugging, comparisons).
 	registry = DataRegistry.load_default()
 	for err in registry.errors:
 		push_error("Data: " + err)
@@ -57,6 +59,7 @@ func _ready() -> void:
 	var tile_space := Node2D.new()
 	tile_space.name = "TileSpace"
 	tile_space.scale = Vector2.ONE * WorldGrid.TILE_PX
+	tile_space.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	add_child(tile_space)
 
 	building_view = BuildingRenderer.new()

@@ -1,16 +1,18 @@
 [gd_resource type="Resource" script_class="TerrainDef" format=3]
 
 [ext_resource type="Script" path="res://scripts/data/terrain_def.gd" id="1_def"]
+[ext_resource type="Texture2D" path="res://assets/sprites/selfmade_scifi_placeholders/terrain_rock.png" id="2_texture"]
 
 [resource]
 script = ExtResource("1_def")
 id = &"rock"
 code = 1
 display_name = "Rock"
-color = Color(0.42, 0.39, 0.36, 1)
+color = Color(0.32, 0.27, 0.42, 1)
 walkable = false
 buildable = false
 destructible = true
 drillable = false
 yield_item = &"stone"
 becomes = &"ground"
+texture = ExtResource("2_texture")

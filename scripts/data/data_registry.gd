@@ -112,6 +112,16 @@ func load_enemies(dir: String) -> void:
 			enemies.append(def)
 
 
+## When false, renderers ignore all textures and use the generated fallback
+## colours (`--no-art` command-line flag, tests). Data is never modified.
+static var art_enabled := true
+
+
+## [param t] if art is enabled, else null. Renderers read textures through this.
+static func art(t: Texture2D) -> Texture2D:
+	return t if art_enabled else null
+
+
 ## Buildings shown in the toolbar, ordered by slot.
 func toolbar_buildings() -> Array[BuildingDef]:
 	var out: Array[BuildingDef] = []

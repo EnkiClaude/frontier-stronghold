@@ -31,6 +31,13 @@
 - [ ] **Human playtest: is defending a supply line fun?**
 - [ ] Profile the sim tick on an M1 (p95 is ~10 ms on the cloud CPU vs the 8 ms budget)
 
+## Art
+- [x] Texture support in data definitions with colour fallbacks (v0.2.2)
+- [x] Self-made sci-fi placeholder set, credits file and screen, credits test
+- [ ] **Blocked:** allow `kenney.nl` / `kenney.itch.io` in the environment's network settings, then replace placeholders with Kenney CC0 packs (Sci-fi RTS, Tower Defense, Particle Pack, UI Pack, Sci-fi Sounds)
+- [ ] Effects: muzzle flashes, hit sparks, death bursts
+- [ ] Audio (CC0)
+
 ## Phase 2 — Economy (after the playtest)
 - [ ] ADR-006: storage, material construction costs, power, save format
 - [ ] Copper/coal/stone uses; walls cost stone; storage chests

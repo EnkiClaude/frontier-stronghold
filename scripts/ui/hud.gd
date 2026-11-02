@@ -10,7 +10,10 @@ extends CanvasLayer
 
 signal restart_requested
 
-const PANEL_BG := Color(0.06, 0.07, 0.06, 0.82)
+const PANEL_BG := Color(0.03, 0.05, 0.08, 0.88)
+const PANEL_BORDER := Color(0.3, 0.9, 1.0, 0.35)
+const ACCENT := Color(0.45, 0.95, 1.0)
+const CREDITS_PATH := "res://assets/CREDITS.md"
 const RATE_WINDOW := 60  # seconds of history for "per minute" rates
 
 var sim: GameSim
@@ -19,7 +22,8 @@ var controller: BuildController
 var camera: CameraController
 
 var _status: Label
-var _resources: Label
+var _resources: RichTextLabel
+var _credits: PanelContainer
 var _info_panel: PanelContainer
 var _info_title: Label
 var _info_body: Label
@@ -98,8 +102,8 @@ func _sample_production() -> void:
 
 func _resources_text() -> String:
 	var lines := PackedStringArray()
-	lines.append("RESOURCES")
-	lines.append("Credits: %d" % sim.credits)
+	lines.append("[color=#73f2ff][b]RESOURCES[/b][/color]")
+	lines.append("Credits: [b]%d[/b]" % sim.credits)
 	var totals := sim.item_totals()
 	var now := sim.factory.produced
 	var past: PackedInt32Array = _history[0] if not _history.is_empty() else now
@@ -110,18 +114,20 @@ func _resources_text() -> String:
 		if totals[i] == 0 and now[i] == 0:
 			continue
 		any = true
-		lines.append("%s: %d   (%+.0f/min)" % [sim.reg.items[i].display_name, totals[i], rate])
+		var icon := DataRegistry.art(sim.reg.items[i].icon)
+		var img := "[img=18x18]%s[/img] " % icon.resource_path if icon != null and icon.resource_path != "" else ""
+		lines.append("%s%s: [b]%d[/b]   [color=#9aa]%+.0f/min[/color]" % [img, sim.reg.items[i].display_name, totals[i], rate])
 	if not any:
 		lines.append("No production yet —\nbuild a Mining Drill on ore.")
 	var ammo := sim.ammo_summary()
 	if ammo[1] > 0:
 		lines.append("")
-		lines.append("TOWER AMMO")
-		lines.append("Loaded: %d / %d rounds" % [ammo[0], ammo[1]])
+		lines.append("[color=#73f2ff][b]TOWER AMMO[/b][/color]")
+		lines.append("Loaded: [b]%d[/b] / %d rounds" % [ammo[0], ammo[1]])
 		if ammo[2] > 0:
-			lines.append("EMPTY towers: %d" % ammo[2])
+			lines.append("[color=#ff5a4a]EMPTY towers: %d[/color]" % ammo[2])
 		if ammo[3] > 0:
-			lines.append("Low (<25%%): %d" % ammo[3])
+			lines.append("[color=#ffc04a]Low (<25%%): %d[/color]" % ammo[3])
 	return "\n".join(lines)
 
 
@@ -262,7 +268,15 @@ func _build() -> void:
 	var res := _panel()
 	res.position = Vector2(10, 52)
 	res.custom_minimum_size = Vector2(250, 0)
-	_resources = _label(15)
+	_resources = RichTextLabel.new()
+	_resources.bbcode_enabled = true
+	_resources.fit_content = true
+	_resources.scroll_active = false
+	_resources.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_resources.custom_minimum_size = Vector2(250, 0)
+	_resources.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_resources.add_theme_font_size_override("normal_font_size", 15)
+	_resources.add_theme_font_size_override("bold_font_size", 15)
 	res.add_child(_resources)
 	root.add_child(res)
 
@@ -276,7 +290,7 @@ func _build() -> void:
 	var info_box := VBoxContainer.new()
 	info_box.add_theme_constant_override("separation", 6)
 	_info_title = _label(19)
-	_info_title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+	_info_title.add_theme_color_override("font_color", ACCENT)
 	info_box.add_child(_info_title)
 	_info_body = _label(14)
 	_info_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -333,7 +347,8 @@ func _build() -> void:
 	var cam_row := HBoxContainer.new()
 	cam_row.alignment = BoxContainer.ALIGNMENT_END
 	for spec in [["Zoom +", func() -> void: camera.zoom_by(1.3)], ["Zoom −", func() -> void: camera.zoom_by(1.0 / 1.3)],
-			["Core [H]", func() -> void: camera.center_on(sim.core.center() * WorldGrid.TILE_PX)]]:
+			["Core [H]", func() -> void: camera.center_on(sim.core.center() * WorldGrid.TILE_PX)],
+			["Credits", func() -> void: _credits.visible = not _credits.visible]]:
 		var b := _button(spec[0])
 		b.pressed.connect(spec[1])
 		cam_row.add_child(b)
@@ -342,6 +357,28 @@ func _build() -> void:
 	minimap.setup(sim, camera, 300.0)
 	map_box.add_child(minimap)
 	root.add_child(map_box)
+
+	# Credits screen (same content as assets/CREDITS.md).
+	_credits = _panel()
+	_credits.set_anchors_preset(Control.PRESET_CENTER)
+	_credits.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_credits.grow_vertical = Control.GROW_DIRECTION_BOTH
+	var cr_box := VBoxContainer.new()
+	var cr_title := _label(22)
+	cr_title.text = "Credits"
+	cr_title.add_theme_color_override("font_color", ACCENT)
+	cr_box.add_child(cr_title)
+	var cr_text := RichTextLabel.new()
+	cr_text.bbcode_enabled = true
+	cr_text.custom_minimum_size = Vector2(820, 520)
+	cr_text.text = credits_bbcode(_read_credits())
+	cr_box.add_child(cr_text)
+	var close := _button("Close")
+	close.pressed.connect(func() -> void: _credits.visible = false)
+	cr_box.add_child(close)
+	_credits.add_child(cr_box)
+	_credits.visible = false
+	root.add_child(_credits)
 
 	# Toast.
 	_toast = _label(22)
@@ -384,6 +421,33 @@ func _refresh_tools() -> void:
 	_refresh_info()
 
 
+func _read_credits() -> String:
+	var f := FileAccess.open(CREDITS_PATH, FileAccess.READ)
+	if f == null:
+		return "Credits file not found (%s)." % CREDITS_PATH
+	return f.get_as_text()
+
+
+## Converts the subset of Markdown used in CREDITS.md to BBCode.
+static func credits_bbcode(md: String) -> String:
+	var out := PackedStringArray()
+	var bold := RegEx.create_from_string("\\*\\*(.+?)\\*\\*")
+	var code := RegEx.create_from_string("`([^`]+)`")
+	for line in md.split("\n"):
+		if line.begins_with("---") or line.begins_with("|---"):
+			continue
+		line = bold.sub(line, "[b]$1[/b]", true)
+		line = code.sub(line, "[color=#9fe]$1[/color]", true)
+		if line.begins_with("### "):
+			line = "[color=#ffd866][b]%s[/b][/color]" % line.substr(4)
+		elif line.begins_with("## "):
+			line = "\n[color=#73f2ff][font_size=20][b]%s[/b][/font_size][/color]" % line.substr(3)
+		elif line.begins_with("# "):
+			continue
+		out.append(line)
+	return "\n".join(out)
+
+
 static func _clock_text(seconds: float) -> String:
 	var s := int(seconds)
 	return "%d:%02d" % [s / 60, s % 60]
@@ -393,6 +457,8 @@ static func _panel() -> PanelContainer:
 	var p := PanelContainer.new()
 	var style := StyleBoxFlat.new()
 	style.bg_color = PANEL_BG
+	style.border_color = PANEL_BORDER
+	style.set_border_width_all(1)
 	style.set_content_margin_all(10)
 	style.set_corner_radius_all(6)
 	p.add_theme_stylebox_override("panel", style)

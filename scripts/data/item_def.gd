@@ -4,5 +4,7 @@ extends Resource
 
 @export var id: StringName
 @export var display_name: String = ""
-## Placeholder colour for items on belts and in UI.
+## Fallback colour for items on belts (used when [member icon] is not set).
 @export var color: Color = Color.WHITE
+## Optional icon for belts and UI panels.
+@export var icon: Texture2D

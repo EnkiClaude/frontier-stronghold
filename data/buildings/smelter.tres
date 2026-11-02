@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/data/building_def.gd" id="1_def"]
 [ext_resource type="Resource" path="res://data/recipes/iron_plate.tres" id="2_recipe"]
+[ext_resource type="Texture2D" path="res://assets/sprites/selfmade_scifi_placeholders/building_smelter.png" id="3_texture"]
 
 [resource]
 script = ExtResource("1_def")
@@ -19,3 +20,4 @@ directional = false
 recipe = ExtResource("2_recipe")
 input_limit = 10
 output_limit = 20
+texture = ExtResource("3_texture")

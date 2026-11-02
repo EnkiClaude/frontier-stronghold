@@ -13,7 +13,10 @@ extends Resource
 @export var core_damage: int = 1
 ## Credits awarded on kill.
 @export var reward: int = 2
+## Tint (multiplied with [member texture]) and fallback colour.
 @export var color: Color = Color.RED
+## Optional sprite, ideally light/greyscale so [member color] can tint it.
+@export var texture: Texture2D
 ## Visual radius in tiles.
 @export var radius: float = 0.3
 @export_group("Spawning")

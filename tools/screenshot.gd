@@ -44,6 +44,14 @@ func _initialize() -> void:
 		var tower := sim.building_at(Vector2i(26, 68))
 		if tower != null:
 			ctrl._set_selected(tower)
+	if scenario == "empty":
+		sim.credits = 100000
+		var towers := SupplyScenario.build_defense_line(sim, Vector2i(10, 66), 28, 4, false)
+		MazeScenario.run(sim, 3.0)
+		sim.infinite_ammo = false
+		towers[0].ammo = 0
+		towers[1].ammo = 8
+		cam.position = Vector2(34, 69) * WorldGrid.TILE_PX
 	if scenario == "enemy" and sim.enemies.count == 0:
 		MazeScenario.run(sim, seconds)
 	if scenario == "enemy" and sim.enemies.count > 0:

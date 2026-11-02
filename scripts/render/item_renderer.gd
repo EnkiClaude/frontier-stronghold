@@ -1,19 +1,28 @@
 class_name ItemRenderer
 extends Node2D
-## Draws items travelling on belts with one MultiMesh. Lives in tile space.
-## (Belt items move at a constant speed, so no tick interpolation is needed
-## for readability at 30 Hz.)
+## Draws items travelling on belts: one MultiMesh per item type so each type
+## can use its icon ([member ItemDef.icon]); falls back to coloured squares.
+## Lives in tile space.
 
 const ITEM_SIZE := 0.24
+const ICON_SIZE := 0.34
 
 var sim: GameSim
-var _mm := MultiMeshInstance2D.new()
-var _buf := PackedFloat32Array()
+var _mms: Array[MultiMeshInstance2D] = []
+var _bufs: Array[PackedFloat32Array] = []
+var _icon := PackedByteArray()
 
 
 func _ready() -> void:
-	_mm.multimesh = EnemyRenderer.make_multimesh()
-	add_child(_mm)
+	for def in sim.reg.items:
+		var mmi := MultiMeshInstance2D.new()
+		mmi.multimesh = EnemyRenderer.make_multimesh()
+		var icon := DataRegistry.art(def.icon)
+		mmi.texture = icon
+		_icon.append(1 if icon != null else 0)
+		add_child(mmi)
+		_mms.append(mmi)
+		_bufs.append(PackedFloat32Array())
 
 
 func _process(_delta: float) -> void:
@@ -21,16 +30,24 @@ func _process(_delta: float) -> void:
 		return
 	var belts := sim.belts
 	belts.ensure_built()
-	var n := belts.item_count()
-	EnemyRenderer.ensure_capacity(_mm.multimesh, n, _buf)
-	var colors: Array[Color] = []
-	for def in sim.reg.items:
-		colors.append(def.color)
-	var k := 0
+	var types := sim.reg.items.size()
+	var counts := PackedInt32Array()
+	counts.resize(types)
+	counts.fill(0)
+	for line in belts.lines:
+		for item in line.items:
+			counts[item] += 1
+	for t in types:
+		EnemyRenderer.ensure_capacity(_mms[t].multimesh, counts[t], _bufs[t])
+	counts.fill(0)
 	for line in belts.lines:
 		for i in line.items.size():
+			var t := line.items[i]
 			var p := belts.item_position(line, i)
-			EnemyRenderer.write_instance(_buf, k, p.x, p.y, ITEM_SIZE, ITEM_SIZE, colors[line.items[i]])
-			k += 1
-	_mm.multimesh.buffer = _buf
-	_mm.multimesh.visible_instance_count = k
+			var has_icon := _icon[t] == 1
+			var s := ICON_SIZE if has_icon else ITEM_SIZE
+			EnemyRenderer.write_instance(_bufs[t], counts[t], p.x, p.y, s, s, Color.WHITE if has_icon else sim.reg.items[t].color)
+			counts[t] += 1
+	for t in types:
+		_mms[t].multimesh.buffer = _bufs[t]
+		_mms[t].multimesh.visible_instance_count = counts[t]

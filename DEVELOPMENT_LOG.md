@@ -251,3 +251,32 @@ enemy movement needs optimizing (TODO).
    and the export file names (`FrontierStronghold-v0.2.1-macOS.zip`). `CHANGELOG.md` was added.
 
 Tests: 92 pass (new: camera input, tower stats, item totals and production, start-resource floor).
+
+## 2026-11-02 — v0.2.2: futuristic art pass
+
+- **Asset sources blocked.** The environment's network policy denies kenney.nl,
+  kenney.itch.io, opengameart.org, ambientcg.com, polyhaven.com and
+  freesound.org (HTTP 403 at the proxy). Per the asset policy, I didn't
+  use unofficial mirrors. The user was told which hosts to allow.
+- **Self-made placeholder set** instead, which the policy allows:
+  `tools/art/generate_placeholder_art.gd` draws 25 PNGs using antialiased
+  signed-distance shapes (64 px per tile). The output is deterministic, CC0
+  and credited.
+- **Data-driven art fields:** `TerrainDef.texture`, `BuildingDef.texture`,
+  `BuildingDef.turret_texture`, `EnemyDef.texture` (tinted) and `ItemDef.icon`.
+  Renderers read them through `DataRegistry.art()`, so `--no-art` (or
+  `art_enabled = false`) gives the colour fallback without modifying the cached
+  resources.
+- **Renderers:**
+  - Terrain: 64 px atlas, layer scaled 0.5, with flip variants and mipmaps.
+  - Buildings: textured or fallback path, with shared status overlays. The turret rotates to `aim_angle`; belts rotate with the building.
+  - Enemies and belt items: one MultiMesh per type, each with its own texture.
+- **Readability checked with screenshots** (start, battle, supply, and a new
+  "empty" scenario): enemies stand out, belts show direction, and empty towers
+  are tinted red with a flashing ✕. Rock was brightened, and terrain colours
+  were updated so the minimap matches the art.
+- **Credits:** `assets/CREDITS.md` and an in-game Credits screen. `test_asset_credits` checks that:
+  - every pack has a licence file and a credits entry;
+  - textures live under `assets/`;
+  - the tileset builds with and without art.
+- 96 tests pass.

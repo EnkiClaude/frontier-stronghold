@@ -7,8 +7,10 @@ extends Resource
 ## Compact numeric code stored in the world grid (0-255). Must be unique.
 @export_range(0, 255) var code: int = 0
 @export var display_name: String = ""
-## Placeholder render colour until real art exists.
+## Fallback render colour (used when [member texture] is not set) and minimap colour.
 @export var color: Color = Color.MAGENTA
+## Optional tile texture (square; scaled to one tile). Falls back to [member color].
+@export var texture: Texture2D
 ## Enemies can walk on it (before buildings are considered).
 @export var walkable: bool = true
 ## Structures can be placed on it.

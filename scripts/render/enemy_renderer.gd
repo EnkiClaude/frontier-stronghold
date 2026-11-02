@@ -13,17 +13,24 @@ const MIN_SCREEN_PX := 7.0
 var sim: GameSim
 var clock: SimClock
 
-var _bodies := MultiMeshInstance2D.new()
+## One body MultiMesh per enemy type (each can have its own texture).
+var _bodies: Array[MultiMeshInstance2D] = []
+var _body_bufs: Array[PackedFloat32Array] = []
 var _bars := MultiMeshInstance2D.new()
-var _body_buf := PackedFloat32Array()
 var _bar_buf := PackedFloat32Array()
 
 
 func _ready() -> void:
-	_bodies.multimesh = make_multimesh()
-	_bodies.texture = _circle_texture(32)
+	var fallback := _circle_texture(32)
+	for def in sim.reg.enemies:
+		var mmi := MultiMeshInstance2D.new()
+		mmi.multimesh = make_multimesh()
+		var tex := DataRegistry.art(def.texture)
+		mmi.texture = tex if tex != null else fallback
+		add_child(mmi)
+		_bodies.append(mmi)
+		_body_bufs.append(PackedFloat32Array())
 	_bars.multimesh = make_multimesh()
-	add_child(_bodies)
 	add_child(_bars)
 
 
@@ -33,27 +40,39 @@ func _process(_delta: float) -> void:
 	var e := sim.enemies
 	var n := e.count
 	var a := clock.alpha if clock != null and not clock.paused else 1.0
-	ensure_capacity(_bodies.multimesh, n, _body_buf)
+	var types := sim.reg.enemies.size()
+	var counts := PackedInt32Array()
+	counts.resize(types)
+	counts.fill(0)
+	for i in n:
+		counts[e.type[i]] += 1
+	for t in types:
+		ensure_capacity(_bodies[t].multimesh, counts[t], _body_bufs[t])
 	ensure_capacity(_bars.multimesh, n * 2, _bar_buf)
+	counts.fill(0)
 	var bars := 0
 	var px_per_tile := get_global_transform_with_canvas().get_scale().x
 	var min_size := MIN_SCREEN_PX / maxf(px_per_tile, 0.001)
 	var show_bars := px_per_tile >= 12.0  # Health bars only when close enough to read.
 	for i in n:
-		var def: EnemyDef = sim.reg.enemies[e.type[i]]
+		var t := e.type[i]
+		var def: EnemyDef = sim.reg.enemies[t]
 		var px := lerpf(e.prev_x[i], e.x[i], a)
 		var py := lerpf(e.prev_y[i], e.y[i], a)
-		var s := maxf(def.radius * 2.0, min_size)
-		write_instance(_body_buf, i, px, py, s, s, def.color)
+		# Textured sprites include a glow margin, so draw them a bit larger.
+		var s := maxf(def.radius * (2.6 if _bodies[t].texture != null and def.texture != null and DataRegistry.art_enabled else 2.0), min_size)
+		write_instance(_body_bufs[t], counts[t], px, py, s, s, def.color)
+		counts[t] += 1
 		var frac := e.hp[i] / e.max_hp[i]
 		if show_bars and frac < 0.999:
-			var w := maxf(0.6, s)
-			var top := py - def.radius - 0.18
+			var w := maxf(0.6, def.radius * 2.0)
+			var top := py - def.radius - 0.22
 			write_instance(_bar_buf, bars, px, top, w, 0.1, Color(0, 0, 0, 0.75))
 			write_instance(_bar_buf, bars + 1, px - w * 0.5 * (1.0 - frac), top, w * frac, 0.1, Color(0.35, 0.9, 0.35).lerp(Color(0.95, 0.25, 0.2), 1.0 - frac))
 			bars += 2
-	_bodies.multimesh.buffer = _body_buf
-	_bodies.multimesh.visible_instance_count = n
+	for t in types:
+		_bodies[t].multimesh.buffer = _body_bufs[t]
+		_bodies[t].multimesh.visible_instance_count = counts[t]
 	_bars.multimesh.buffer = _bar_buf
 	_bars.multimesh.visible_instance_count = bars
 

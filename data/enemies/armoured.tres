@@ -1,6 +1,7 @@
 [gd_resource type="Resource" script_class="EnemyDef" format=3]
 
 [ext_resource type="Script" path="res://scripts/data/enemy_def.gd" id="1_def"]
+[ext_resource type="Texture2D" path="res://assets/sprites/selfmade_scifi_placeholders/enemy_armoured.png" id="2_texture"]
 
 [resource]
 script = ExtResource("1_def")
@@ -15,3 +16,4 @@ color = Color(0.55, 0.25, 0.6, 1)
 radius = 0.42
 spawn_weight = 1.0
 unlock_time = 90.0
+texture = ExtResource("2_texture")

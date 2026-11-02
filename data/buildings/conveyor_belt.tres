@@ -1,6 +1,7 @@
 [gd_resource type="Resource" script_class="BuildingDef" format=3]
 
 [ext_resource type="Script" path="res://scripts/data/building_def.gd" id="1_def"]
+[ext_resource type="Texture2D" path="res://assets/sprites/selfmade_scifi_placeholders/building_conveyor_belt.png" id="2_texture"]
 
 [resource]
 script = ExtResource("1_def")
@@ -15,4 +16,4 @@ build_time = 0.2
 color = Color(0.32, 0.32, 0.34, 1)
 toolbar_slot = 3
 directional = true
-
+texture = ExtResource("2_texture")

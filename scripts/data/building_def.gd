@@ -16,7 +16,14 @@ extends Resource
 @export var cost: int = 10
 ## Seconds from placement until the structure is active.
 @export var build_time: float = 1.0
+## Fallback colour when no texture is set.
 @export var color: Color = Color.WHITE
+## Optional art covering the whole footprint (drawn unrotated, except belts,
+## which rotate with the building). Falls back to [member color].
+@export var texture: Texture2D
+## Optional tower head drawn on top of [member texture], rotated to the aim
+## angle. Must point east (+x) in the source image.
+@export var turret_texture: Texture2D
 @export var sellable: bool = true
 @export var relocatable: bool = true
 ## Toolbar slot (1-9) and hotkey. 0 = not shown in the toolbar.

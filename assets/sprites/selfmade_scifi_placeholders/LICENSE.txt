@@ -1,0 +1,9 @@
+Self-made sci-fi placeholder art for Frontier Stronghold.
+
+Generated procedurally by tools/art/generate_placeholder_art.gd (written for
+this project). No third-party material is included.
+
+Licence: CC0 1.0 Universal (Public Domain Dedication)
+https://creativecommons.org/publicdomain/zero/1.0/
+To the extent possible under law, the authors have waived all copyright and
+related or neighboring rights to these images.
