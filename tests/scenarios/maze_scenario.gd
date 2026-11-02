@@ -8,6 +8,8 @@ extends RefCounted
 ## [param spacing] apart, with alternating gaps of [param gap] tiles at the top
 ## and bottom. Returns the number of structures placed.
 static func build_serpentine(sim: GameSim, x0: int, walls: int = 4, spacing: int = 6, gap: int = 6, tower_every: int = 20) -> int:
+	# This scenario tests mazing only; ammo supply is covered by SupplyScenario.
+	sim.infinite_ammo = true
 	var h := sim.grid.height
 	var placed := 0
 	for k in walls:

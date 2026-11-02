@@ -17,9 +17,9 @@ var _bar_buf := PackedFloat32Array()
 
 
 func _ready() -> void:
-	_bodies.multimesh = _make_multimesh()
+	_bodies.multimesh = make_multimesh()
 	_bodies.texture = _circle_texture(32)
-	_bars.multimesh = _make_multimesh()
+	_bars.multimesh = make_multimesh()
 	add_child(_bodies)
 	add_child(_bars)
 
@@ -30,21 +30,21 @@ func _process(_delta: float) -> void:
 	var e := sim.enemies
 	var n := e.count
 	var a := clock.alpha if clock != null and not clock.paused else 1.0
-	_ensure_capacity(_bodies.multimesh, n, _body_buf)
-	_ensure_capacity(_bars.multimesh, n * 2, _bar_buf)
+	ensure_capacity(_bodies.multimesh, n, _body_buf)
+	ensure_capacity(_bars.multimesh, n * 2, _bar_buf)
 	var bars := 0
 	for i in n:
 		var def: EnemyDef = sim.reg.enemies[e.type[i]]
 		var px := lerpf(e.prev_x[i], e.x[i], a)
 		var py := lerpf(e.prev_y[i], e.y[i], a)
 		var s := def.radius * 2.0
-		_write(_body_buf, i, px, py, s, s, def.color)
+		write_instance(_body_buf, i, px, py, s, s, def.color)
 		var frac := e.hp[i] / e.max_hp[i]
 		if frac < 0.999:
 			var w := maxf(0.6, s)
 			var top := py - def.radius - 0.18
-			_write(_bar_buf, bars, px, top, w, 0.1, Color(0, 0, 0, 0.75))
-			_write(_bar_buf, bars + 1, px - w * 0.5 * (1.0 - frac), top, w * frac, 0.1, Color(0.35, 0.9, 0.35).lerp(Color(0.95, 0.25, 0.2), 1.0 - frac))
+			write_instance(_bar_buf, bars, px, top, w, 0.1, Color(0, 0, 0, 0.75))
+			write_instance(_bar_buf, bars + 1, px - w * 0.5 * (1.0 - frac), top, w * frac, 0.1, Color(0.35, 0.9, 0.35).lerp(Color(0.95, 0.25, 0.2), 1.0 - frac))
 			bars += 2
 	_bodies.multimesh.buffer = _body_buf
 	_bodies.multimesh.visible_instance_count = n
@@ -52,7 +52,7 @@ func _process(_delta: float) -> void:
 	_bars.multimesh.visible_instance_count = bars
 
 
-func _make_multimesh() -> MultiMesh:
+static func make_multimesh() -> MultiMesh:
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_2D
 	mm.use_colors = true
@@ -63,7 +63,7 @@ func _make_multimesh() -> MultiMesh:
 
 
 ## Grows the instance count in steps so the buffer is rarely reallocated.
-func _ensure_capacity(mm: MultiMesh, needed: int, buf: PackedFloat32Array) -> void:
+static func ensure_capacity(mm: MultiMesh, needed: int, buf: PackedFloat32Array) -> void:
 	if mm.instance_count >= needed and buf.size() == mm.instance_count * STRIDE:
 		return
 	var cap := maxi(256, mm.instance_count)
@@ -73,7 +73,7 @@ func _ensure_capacity(mm: MultiMesh, needed: int, buf: PackedFloat32Array) -> vo
 	buf.resize(cap * STRIDE)
 
 
-static func _write(buf: PackedFloat32Array, i: int, x: float, y: float, sx: float, sy: float, c: Color) -> void:
+static func write_instance(buf: PackedFloat32Array, i: int, x: float, y: float, sx: float, sy: float, c: Color) -> void:
 	var o := i * STRIDE
 	buf[o] = sx
 	buf[o + 1] = 0.0

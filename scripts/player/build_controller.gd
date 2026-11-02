@@ -94,10 +94,14 @@ func start_move_selected() -> void:
 
 # --- Frame update ------------------------------------------------------------
 
+## When set, replaces the real mouse position (tile units); used by tests.
+var mouse_override: Variant = null
+
+
 func _process(delta: float) -> void:
 	if sim == null:
 		return
-	_mouse = get_local_mouse_position()
+	_mouse = mouse_override if mouse_override != null else get_local_mouse_position()
 	_hover = Vector2i(floori(_mouse.x), floori(_mouse.y))
 	if selected != null and not sim.buildings.has(selected.id):
 		_set_selected(null)
@@ -161,12 +165,26 @@ func _on_primary_pressed() -> void:
 				cancel()
 
 
+## Rotation used for placement. Dragging a line of directional 1x1 buildings
+## (belts) points them along the drag, like Factorio.
+func _effective_rotation() -> int:
+	if mode == Mode.BUILD and _dragging and build_def.directional and build_def.size == Vector2i.ONE:
+		var d := _anchor() - _drag_start
+		if d != Vector2i.ZERO:
+			if absi(d.x) >= absi(d.y):
+				return 0 if d.x > 0 else 2
+			return 1 if d.y > 0 else 3
+	return rotation_steps
+
+
 func _commit_drag() -> void:
+	var rot := _effective_rotation()
+	var origins := _line_origins()  # Must be computed while still dragging.
 	_dragging = false
 	var placed := 0
 	var first_err := ""
-	for g in _line_origins():
-		var err := sim.excavate(g) if mode == Mode.EXCAVATE else sim.place(build_def.id, g, rotation_steps)
+	for g in origins:
+		var err := sim.excavate(g) if mode == Mode.EXCAVATE else sim.place(build_def.id, g, rot)
 		if err == "":
 			placed += 1
 		elif first_err == "":
@@ -229,14 +247,14 @@ func _update_ghosts() -> void:
 		var err := ""
 		match mode:
 			Mode.BUILD:
-				err = sim.check_place(build_def.id, o, rotation_steps, null, not single)
+				err = sim.check_place(build_def.id, o, _effective_rotation(), null, not single)
 			Mode.EXCAVATE:
 				err = sim.check_excavate(o)
 			Mode.MOVE:
 				err = sim.check_place(selected.def.id, o, rotation_steps, selected)
 				if err == "" and sim.credits < sim.relocate_fee(selected):
 					err = GameSim.ERR_CREDITS
-		_ghosts.append([o, _footprint(), err == ""])
+		_ghosts.append([o, _footprint(), err == "", _effective_rotation()])
 		if single:
 			_ghost_reason = err
 
@@ -305,6 +323,9 @@ func _draw() -> void:
 		var ok: bool = g[2]
 		draw_rect(rect, OK_COLOR if ok else BAD_COLOR)
 		draw_rect(rect, Color(OK_COLOR if ok else BAD_COLOR, 0.9), false, 0.06)
+		var dir_def: BuildingDef = build_def if mode == Mode.BUILD else (selected.def if mode == Mode.MOVE and selected != null else null)
+		if dir_def != null and dir_def.directional:
+			_draw_chevron(rect, g[3])
 	var range_def: BuildingDef = build_def if mode == Mode.BUILD else (selected.def if selected != null else null)
 	if range_def != null and range_def.tower != null:
 		var center: Vector2
@@ -321,6 +342,14 @@ func _draw() -> void:
 			if i < sim.enemies.count and shown < 8:
 				shown += 1
 				draw_arc(Vector2(sim.enemies.x[i], sim.enemies.y[i]), r, 0.0, TAU, 40, Color(1, 0.3, 0.2, 0.2), 0.05)
+
+
+func _draw_chevron(r: Rect2, rot: int) -> void:
+	var c := r.get_center()
+	var d := Vector2(BeltNetwork.DIRS[rot % 4])
+	var side := Vector2(-d.y, d.x)
+	var s := minf(r.size.x, r.size.y) * 0.3
+	draw_polyline(PackedVector2Array([c - d * s + side * s, c + d * s * 0.8, c - d * s - side * s]), Color(1, 1, 1, 0.9), 0.1)
 
 
 func _set_selected(b: Building) -> void:

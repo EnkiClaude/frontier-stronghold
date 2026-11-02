@@ -37,7 +37,42 @@ func _initialize() -> void:
 		for i in 1000000:
 			acc += t[i % n])
 	_bench_sim(reg, cfg)
+	_bench_belts()
 	quit(0)
+
+
+## 10,000 items on 50 belt loops of 52 tiles (moving, not jammed).
+func _bench_belts() -> void:
+	var g := WorldGrid.new(200, 160)
+	var net := BeltNetwork.new(g)
+	for k in 50:
+		var x0 := (k % 10) * 18 + 1
+		var y0 := (k / 10) * 30 + 1
+		# 14 x 14 square loop (52 tiles), clockwise.
+		for x in range(x0, x0 + 13):
+			net.add_belt(g.idx(x, y0), 0)
+		for y in range(y0, y0 + 13):
+			net.add_belt(g.idx(x0 + 13, y), 1)
+		for x in range(x0 + 1, x0 + 14):
+			net.add_belt(g.idx(x, y0 + 13), 2)
+		for y in range(y0 + 1, y0 + 14):
+			net.add_belt(g.idx(x0, y), 3)
+	net.ensure_built()
+	var added := 0
+	for line in net.lines:
+		var p := 0.1
+		while p < line.tiles.size() - 0.3 and added < 10000 and line.items.size() < 200:
+			line.pos.append(p)
+			line.items.append(0)
+			p += BeltNetwork.SPACING + 0.01
+			added += 1
+	var times: Array[float] = []
+	for i in 120:
+		var t0 := Time.get_ticks_usec()
+		net.tick(1.0 / 30.0)
+		times.append((Time.get_ticks_usec() - t0) / 1000.0)
+	times.sort()
+	print("  %-48s %8.2f ms (p95 %.2f)" % ["Belt tick: %d items on %d lines" % [net.item_count(), net.lines.size()], times[60], times[114]])
 
 
 ## Full simulation tick under load: maze + towers + 2,000 enemies.
@@ -72,16 +107,16 @@ func _bench_sim(reg: DataRegistry, cfg: WorldGenConfig) -> void:
 	var t1 := Time.get_ticks_usec()
 	var err := sim.check_place(&"wall", wall)
 	print("  %-48s %8.2f ms (%s)" % ["Placement check, open ground", (Time.get_ticks_usec() - t1) / 1000.0, err if err != "" else "ok"])
-	t1 = Time.get_ticks_usec()
-	sim.path._all_reach_goal(sim.path.plan_passable, sim._enemy_cells())
-	print("  %-48s %8.2f ms" % ["Route validation, full-BFS fallback", (Time.get_ticks_usec() - t1) / 1000.0])
-	sim.path.mark_dirty()
-	var ticks := 0
-	t1 = Time.get_ticks_usec()
-	while sim.path.is_updating():
-		sim.path.tick()
-		ticks += 1
-	print("  %-48s %8.2f ms over %d ticks" % ["Flow field recompute (time-sliced)", (Time.get_ticks_usec() - t1) / 1000.0, ticks])
+	_report("Route validation, full-BFS fallback", func() -> void:
+		sim.path._all_reach_goal(sim.path.plan_passable, sim._enemy_cells()))
+	var ticks := [0]  # Lambdas capture locals by value; use a container.
+	_report("Flow field recompute, total (time-sliced)", func() -> void:
+		sim.path.mark_dirty()
+		ticks[0] = 0
+		while sim.path.is_updating():
+			sim.path.tick()
+			ticks[0] += 1)
+	print("  %-48s %8d" % ["  ...spread over ticks", ticks[0]])
 
 
 func _report(label: String, fn: Callable) -> void:

@@ -6,9 +6,10 @@ with ammo from your factory, and push the frontier east.
 
 See [PROJECT_PLAN.md](PROJECT_PLAN.md) for the full design and roadmap.
 
-**Status:** Phase 1 (Maze prototype) complete: build walls to shape the enemy
-route, defend the Core with Chain Guns, and excavate rock to open new paths.
-Next: Phase 1.5 (supply slice: belt-fed ammo).
+**Status:** Phase 1.5 (supply slice) complete. Build walls to shape the enemy
+route, defend the Core with Chain Guns, and keep the guns loaded with ammo
+mined, smelted and manufactured by your own production line.
+Next: a human playtest, then Phase 2 (economy).
 
 ## Requirements
 
@@ -41,6 +42,19 @@ hover a valid wall or tower, a **cyan line** previews the route it would create.
 - Excavating rock (grey, speckled) opens new routes.
 - An **assault** (a large wave) arrives every 2 minutes. Kills earn credits.
 
+**Ammo supply.** Each Chain Gun holds 100 rounds and starts with 50. An empty
+gun stops firing and flashes a red ✕. To keep guns loaded, build:
+
+```
+Mining Drill (on iron ore) → Belt → Inserter → Smelter → Inserter → Ammo Factory → Inserter → Belt → Inserter → Chain Gun
+```
+
+- **Drills** drop ore onto whatever is in front of them (the arrow).
+- **Inserters** move one item from the tile behind them to the tile in front (the arrow). They only pick up what the target can use.
+- **Belts** dragged in a line point along the drag direction. Press R to rotate before placing.
+- One drill feeds roughly four busy Chain Guns.
+- Belts, machines and inserters don't block enemies, and enemies never damage them.
+
 ### Controls
 
 | Action | Default |
@@ -49,7 +63,7 @@ hover a valid wall or tower, a **cyan line** previews the route it would create.
 | Zoom (towards cursor) | Mouse wheel / Page Up / Page Down |
 | Select building / place (drag for lines) | Left mouse |
 | Cancel tool / sell building under cursor | Right mouse |
-| Build Stone Wall / Chain Gun | `1` / `2` (or the toolbar) |
+| Build: Wall, Chain Gun, Belt, Inserter, Drill, Smelter, Ammo Factory | `1`–`7` (or the toolbar) |
 | Excavate rock | `X` |
 | Move / sell selected building | `M` / `Delete` |
 | Rotate | `R` |
@@ -99,6 +113,7 @@ scripts/
   buildings/     Building instances
   enemies/       Enemy storage (structure of arrays) and spawning
   combat/        Spatial hash for targeting
+  logistics/     Belt network (transport lines), drills, crafters, inserters
   core/          Fixed-tick clock, deterministic RNG, event bus, key bindings
   data/          Definition classes and the DataRegistry loader
   world/         World grid storage and procedural generation

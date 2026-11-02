@@ -9,6 +9,7 @@ extends RefCounted
 const TERRAIN_DIR := "res://data/terrain"
 const BUILDING_DIR := "res://data/buildings"
 const ENEMY_DIR := "res://data/enemies"
+const ITEM_DIR := "res://data/items"
 const RULES_PATH := "res://data/rules/default_rules.tres"
 const SPAWNING_PATH := "res://data/rules/default_spawning.tres"
 
@@ -20,6 +21,9 @@ var walkable_lut := PackedByteArray()
 ## code -> 1 if structures can be placed, else 0.
 var buildable_lut := PackedByteArray()
 var buildings_by_id: Dictionary = {}
+## Item definitions; the array index is the item index used in hot code.
+var items: Array[ItemDef] = []
+var item_index_by_id: Dictionary = {}
 ## Enemy definitions; the array index is the enemy type index used by the simulation.
 var enemies: Array[EnemyDef] = []
 var enemies_by_id: Dictionary = {}
@@ -32,6 +36,7 @@ var errors := PackedStringArray()
 static func load_default() -> DataRegistry:
 	var reg := DataRegistry.new()
 	reg.load_terrain(TERRAIN_DIR)
+	reg.load_items(ITEM_DIR)
 	reg.load_buildings(BUILDING_DIR)
 	reg.load_enemies(ENEMY_DIR)
 	reg.rules = load(RULES_PATH) as GameRules
@@ -40,7 +45,42 @@ static func load_default() -> DataRegistry:
 		reg.errors.append("Missing or invalid " + RULES_PATH)
 	if reg.spawning == null:
 		reg.errors.append("Missing or invalid " + SPAWNING_PATH)
+	reg.validate_references()
 	return reg
+
+
+func load_items(dir: String) -> void:
+	for res in load_resources_in(dir):
+		var def := res as ItemDef
+		if def == null or def.id == &"":
+			errors.append("%s: not a valid ItemDef" % res.resource_path)
+		elif item_index_by_id.has(def.id):
+			errors.append("Duplicate item id '%s'" % def.id)
+		else:
+			item_index_by_id[def.id] = items.size()
+			items.append(def)
+
+
+## Index of item [param id], or -1 if unknown.
+func item_index(id: StringName) -> int:
+	return item_index_by_id.get(id, -1)
+
+
+## Checks that recipes, towers and ores only reference known items.
+func validate_references() -> void:
+	for def: BuildingDef in buildings_by_id.values():
+		if def.kind == &"crafter":
+			if def.recipe == null:
+				errors.append("Crafter '%s' has no recipe" % def.id)
+				continue
+			for item in def.recipe.inputs.keys() + def.recipe.outputs.keys():
+				if not item_index_by_id.has(StringName(item)):
+					errors.append("Recipe '%s' uses unknown item '%s'" % [def.recipe.id, item])
+		if def.tower != null and def.tower.ammo_item != &"" and not item_index_by_id.has(def.tower.ammo_item):
+			errors.append("Tower '%s' uses unknown ammo '%s'" % [def.id, def.tower.ammo_item])
+	for def: TerrainDef in terrain_by_id.values():
+		if def.drillable and not item_index_by_id.has(def.yield_item):
+			errors.append("Terrain '%s' yields unknown item '%s'" % [def.id, def.yield_item])
 
 
 func load_buildings(dir: String) -> void:

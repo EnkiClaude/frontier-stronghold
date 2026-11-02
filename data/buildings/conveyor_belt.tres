@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/building_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"conveyor_belt"
+kind = &"belt"
+display_name = "Conveyor Belt"
+size = Vector2i(1, 1)
+blocks_path = false
+cost = 2
+build_time = 0.2
+color = Color(0.32, 0.32, 0.34, 1)
+toolbar_slot = 3
+directional = true
+

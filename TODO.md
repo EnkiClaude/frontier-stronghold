@@ -23,11 +23,20 @@
 - [ ] Enemy separation (they walk in near single file)
 - [ ] "What if" route while moving a building
 
-## Phase 1.5 — Supply slice (next)
-- [ ] ADR-005: items, belts (transport-line segments), inserters
-- [ ] Iron ore drill → belt → smelter → ammo factory → inserter → Chain Gun
-- [ ] Tower ammo buffer + "no ammo" indicator; turn off `infinite_ammo`
-- [ ] Playtest question: is defending a supply line fun?
+## Phase 1.5 — Supply slice ✅ (pending human playtest)
+- [x] ADR-005: items, belts (transport lines), inserters, machines
+- [x] Iron ore drill → belt → smelter → ammo factory → inserter → Chain Gun
+- [x] Tower ammo + empty indicator; `infinite_ammo` off by default
+- [x] Automated supply playtest (supplied vs unsupplied)
+- [ ] **Human playtest: is defending a supply line fun?**
+- [ ] Profile the sim tick on an M1 (p95 is ~10 ms on the cloud CPU vs the 8 ms budget)
+
+## Phase 2 — Economy (after the playtest)
+- [ ] ADR-006: storage, material construction costs, power, save format
+- [ ] Copper/coal/stone uses; walls cost stone; storage chests
+- [ ] Power network with brown-out
+- [ ] Versioned save/load
+- [ ] Two-lane belts? (decide after the playtest)
 
 ## Later / ideas
 - [ ] In-game keybinding menu (backend exists: `Keybinds.rebind_keys`)

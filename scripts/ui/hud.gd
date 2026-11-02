@@ -91,11 +91,11 @@ func _build() -> void:
 	bottom.add_child(bar)
 	root.add_child(bottom)
 	for def in sim.reg.toolbar_buildings():
-		var btn := _button("[%d] %s  %d" % [def.toolbar_slot, def.display_name, def.cost])
+		var btn := _button("[%d] %s %d" % [def.toolbar_slot, def.display_name, def.cost])
 		btn.pressed.connect(controller.select_build.bind(def))
 		_toolbar.add_child(btn)
 		_tool_buttons[def] = btn
-	var dig := _button("[X] Excavate  %d" % sim.rules.excavate_cost)
+	var dig := _button("[X] Excavate %d" % sim.rules.excavate_cost)
 	dig.pressed.connect(controller.select_excavate)
 	_toolbar.add_child(dig)
 	_tool_buttons[&"excavate"] = dig
@@ -171,11 +171,26 @@ func _refresh_selection() -> void:
 	if b.def.tower != null:
 		var t := b.def.tower
 		text += "\nDamage %.0f · %.1f/s · Range %.1f" % [t.damage, t.fire_rate, t.range_tiles]
+		if not sim.infinite_ammo:
+			text += "\nAmmo %d/%d%s" % [b.ammo, t.magazine_size, "  — EMPTY!" if b.ammo <= 0 else ""]
+	if b.def.kind == &"crafter":
+		text += "\nIn: %s\nOut: %s" % [_inv_text(b.inv_in), _inv_text(b.inv_out)]
+	elif b.def.kind == &"drill":
+		var y := sim.factory.drill_yield(b.cells)
+		text += "\nMining: %s%s" % [sim.reg.items[y].display_name if y >= 0 else "-", "  (output blocked)" if b.held >= 0 else ""]
 	_sel_label.text = text
 	_sell_btn.text = "Sell (+%d)" % sim.sell_value(b)
 	_sell_btn.disabled = not b.def.sellable
 	_move_btn.text = "Move (-%d)" % sim.relocate_fee(b)
 	_move_btn.disabled = not b.def.relocatable or not b.is_active()
+
+
+func _inv_text(inv: Dictionary) -> String:
+	var parts := PackedStringArray()
+	for item: int in inv:
+		if inv[item] > 0:
+			parts.append("%s ×%d" % [sim.reg.items[item].display_name, inv[item]])
+	return ", ".join(parts) if not parts.is_empty() else "empty"
 
 
 static func _clock_text(seconds: float) -> String:
@@ -205,5 +220,5 @@ static func _button(text: String) -> Button:
 	b.text = text
 	b.focus_mode = Control.FOCUS_NONE
 	b.custom_minimum_size = Vector2(0, 40)
-	b.add_theme_font_size_override("font_size", 16)
+	b.add_theme_font_size_override("font_size", 14)
 	return b

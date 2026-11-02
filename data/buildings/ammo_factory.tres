@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/building_def.gd" id="1_def"]
+[ext_resource type="Resource" path="res://data/recipes/ammo_magazine.tres" id="2_recipe"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"ammo_factory"
+kind = &"crafter"
+display_name = "Ammo Factory"
+size = Vector2i(2, 2)
+blocks_path = false
+cost = 60
+build_time = 1.5
+color = Color(0.6, 0.55, 0.25, 1)
+toolbar_slot = 7
+directional = false
+recipe = ExtResource("2_recipe")
+input_limit = 10
+output_limit = 20

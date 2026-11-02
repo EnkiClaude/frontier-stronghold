@@ -57,6 +57,10 @@ func _ready() -> void:
 	building_view.sim = sim
 	tile_space.add_child(building_view)
 
+	var item_view := ItemRenderer.new()
+	item_view.sim = sim
+	tile_space.add_child(item_view)
+
 	var route_view := RouteRenderer.new()
 	tile_space.add_child(route_view)
 

@@ -5,6 +5,7 @@
 [resource]
 script = ExtResource("1_def")
 id = &"core"
+kind = &"core"
 display_name = "Core"
 size = Vector2i(3, 3)
 blocks_path = false

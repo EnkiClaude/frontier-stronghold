@@ -1,7 +1,8 @@
 extends SceneTree
 ## Launches the game, optionally plays a scripted scenario, saves a screenshot.
 ##   godot --path . -s res://tools/screenshot.gd -- <out.png> [scenario] [zoom] [sim_seconds]
-## Scenarios: start (default), battle (serpentine maze + towers).
+## Scenarios: start (default), battle (serpentine maze + towers),
+## supply (ammo production line feeding Chain Guns), enemy.
 
 func _initialize() -> void:
 	var args := OS.get_cmdline_user_args()
@@ -29,6 +30,18 @@ func _initialize() -> void:
 				best = i
 		if best >= 0:
 			cam.position = Vector2(sim.enemies.x[best], sim.enemies.y[best]) * WorldGrid.TILE_PX
+	if scenario == "supply":
+		sim.credits = 100000
+		var ground := sim.reg.terrain_code(&"ground")
+		for x in range(9, 64):
+			for y in range(64, 80):
+				sim.grid.set_terrain(x, y, ground)
+				sim.path.terrain_changed(sim.grid.idx(x, y))
+		SupplyScenario.build_defense_line(sim, Vector2i(10, 66), 28, 4)
+		MazeScenario.run(sim, seconds)
+		cam.position = Vector2(30, 71) * WorldGrid.TILE_PX
+		var ctrl: BuildController = main.get("controller")
+		ctrl.select_build(sim.reg.buildings_by_id[&"conveyor_belt"])
 	if scenario == "enemy" and sim.enemies.count == 0:
 		MazeScenario.run(sim, seconds)
 	if scenario == "enemy" and sim.enemies.count > 0:

@@ -15,6 +15,8 @@ extends Resource
 @export var relocate_time: float = 3.0
 ## No construction changes within this many tiles of a living enemy.
 @export var no_build_radius: float = 6.0
+## Towers fire without ammunition (Phase 1 behaviour; tests/debug).
+@export var infinite_ammo: bool = false
 @export_group("Excavation")
 @export var excavate_cost: int = 15
 @export var excavate_time: float = 2.0

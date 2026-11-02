@@ -5,6 +5,7 @@
 [resource]
 script = ExtResource("1_def")
 id = &"wall"
+kind = &"wall"
 display_name = "Stone Wall"
 size = Vector2i(1, 1)
 blocks_path = true

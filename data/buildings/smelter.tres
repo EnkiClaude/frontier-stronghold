@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/building_def.gd" id="1_def"]
+[ext_resource type="Resource" path="res://data/recipes/iron_plate.tres" id="2_recipe"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"smelter"
+kind = &"crafter"
+display_name = "Smelter"
+size = Vector2i(2, 2)
+blocks_path = false
+cost = 50
+build_time = 1.5
+color = Color(0.7, 0.42, 0.3, 1)
+toolbar_slot = 6
+directional = false
+recipe = ExtResource("2_recipe")
+input_limit = 10
+output_limit = 20

@@ -10,5 +10,11 @@ extends Resource
 @export var damage_type: StringName = &"kinetic"
 ## Default targeting priority: first, last, strongest, weakest, closest.
 @export var targeting: StringName = &"first"
-## Supply item consumed per shot (Phase 1.5+). Empty = no supply needed.
+## Supply item that refills this tower. Empty = no supply needed.
 @export var ammo_item: StringName = &""
+## Rounds added per delivered ammo item.
+@export var rounds_per_item: int = 10
+## Rounds the tower can hold.
+@export var magazine_size: int = 100
+## Rounds a newly built tower starts with.
+@export var starter_ammo: int = 50

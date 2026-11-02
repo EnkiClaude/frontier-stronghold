@@ -149,3 +149,71 @@
 - [x] Selling and relocation work with the agreed costs
 - [ ] Human playtest on macOS (needs you, at a computer)
 - [ ] Playable desktop builds exported (see below)
+
+## 2026-11-02 — Phase 1.5: Supply slice
+
+### Done
+- **ADR-005:** items, belts as transport lines, inserters, machines.
+- **Data:** 6 items (`data/items`), 2 recipes (`data/recipes`), and 5 new
+  buildings: Conveyor Belt, Inserter, Mining Drill, Smelter, Ammo Factory.
+  `BuildingDef.kind` selects the behaviour.
+- **`BeltNetwork`:** single-lane belts (1.875 tiles/s, 0.25 spacing).
+  - Chains are merged into lines and rebuilt lazily when the layout changes.
+  - Curves, side-loading, loops and back-pressure all work.
+  - Items survive rebuilds; items on removed belts are lost.
+- **`FactorySystem`:**
+  - Drills mine the ore under them and push into the tile in front.
+  - Crafters have bounded input and output buffers.
+  - Inserters only pick up what the target can accept.
+  - Relocated machines keep their inventories.
+- **Towers use ammo:** 100-round magazine, 50 starter rounds, +10 per
+  delivered magazine. Empty towers stop firing. `GameRules.infinite_ammo`
+  keeps the Phase 1 behaviour for tests.
+- **Views:**
+  - Belts with direction chevrons.
+  - Belt items drawn with a MultiMesh.
+  - Inserter arm animation with the held item.
+  - Drill and crafter progress.
+  - Tower ammo bar and a flashing ✕ when empty.
+  - Direction arrows on ghosts.
+- **Controls:** keys 1–7 and toolbar buttons. Dragging belts points them along the drag.
+- **HUD:** the selection panel shows ammo, crafter inputs and outputs, and what a drill is mining (or that its output is blocked).
+
+### Bug found and fixed
+- **Drag-to-place only placed one structure (Phase 1 bug).** `_commit_drag`
+  cleared the dragging flag before working out the line. The bot tests used
+  `GameSim` commands directly, so they never exercised the input controller.
+  - Fix: compute the line before clearing the flag.
+  - New `test_build_controller` drives the real controller with a simulated mouse, and fails if the bug is reintroduced.
+
+### Testing
+- 83 tests. New ones cover:
+  - **Belts:** compression and spacing, curves, side-load, loops, rebuilds, filters, opposite belts.
+  - **Factory:** drill needs ore, drill stalls when blocked, the inserter filter, crafting, a full chain loading a tower, relocation keeping inventory, selling a belt unregistering it, and an empty tower not firing.
+  - **Controller:** drag placement, belt drag direction.
+- Mutation checks: disabling belt back-pressure fails 2 tests, and the old drag bug fails 2 tests.
+
+**Supply playtest** (`test_supply_playtest`): the same 4 Chain Guns behind a funnel wall, 6 minutes of real spawning.
+
+| | Rounds fired | Kills | Leaked | Core |
+|---|---|---|---|---|
+| No supply (starter ammo only) | 200 | 33 | 20 | **destroyed** |
+| Drill → smelter → ammo factory → belt → inserters | 2,892 | 230 | 5 | **7/20, survived** |
+
+### Benchmarks (cloud Xeon; 5-run medians)
+
+| Benchmark | Result |
+|---|---|
+| Belt tick, 9,950 moving items on 50 lines | 1.4–2.6 ms |
+| Sim tick, 2,000 enemies + maze | 5.7–6.0 ms median, p95 9–11 ms |
+| Route validation fallback | ~16 ms |
+| Flow field recompute | ~17 ms over 4 ticks |
+
+The sim tick's p95 is over the 8 ms budget on this CPU, though the median is
+well inside it. It needs profiling on an M1 before deciding whether
+enemy movement needs optimizing (TODO).
+
+### Open questions for the human playtest
+- Is keeping a supply line running fun, or a chore? (The Phase 1.5 question.)
+- Is a 50-round starter enough to survive until the first ammo line is running?
+- Are the costs right? (Drill 40, Smelter 50, Ammo Factory 60, Inserter 10, Belt 2, all in `data/buildings`.)

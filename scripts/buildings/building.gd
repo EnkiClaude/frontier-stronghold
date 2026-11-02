@@ -19,7 +19,20 @@ var placed_tick: int = 0
 ## Footprint tile indices (cached).
 var cells := PackedInt32Array()
 
+# Logistics runtime state.
+## Crafter input buffer: item index -> count.
+var inv_in: Dictionary = {}
+## Crafter output buffer: item index -> count.
+var inv_out: Dictionary = {}
+## Crafting / mining / swing progress (0..1).
+var progress: float = 0.0
+var crafting := false
+## Item held by an inserter hand or waiting in a drill (-1 = none).
+var held: int = -1
+
 # Tower runtime state.
+## Rounds loaded.
+var ammo: int = 0
 var cooldown: float = 0.0
 var target_uid: int = -1
 var aim_angle: float = 0.0

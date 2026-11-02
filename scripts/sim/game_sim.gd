@@ -23,6 +23,7 @@ const ERR_NOT_SELLABLE := "Can't be sold"
 const ERR_NOT_MOVABLE := "Can't be moved right now"
 const ERR_NOT_DIGGABLE := "Nothing to excavate here"
 const ERR_GAME_OVER := "Game over"
+const ERR_NEEDS_ORE := "Must be placed on ore"
 
 var reg: DataRegistry
 var rules: GameRules
@@ -31,6 +32,8 @@ var path: PathMap
 var enemies := EnemyStore.new()
 var spatial: SpatialHash
 var spawner: SpawnDirector
+var belts: BeltNetwork
+var factory: FactorySystem
 var rng: SimRng
 var _spawn_rng: SimRng
 
@@ -55,14 +58,15 @@ var occupancy := PackedInt32Array()
 var excavations: Dictionary = {}
 ## Incremented whenever buildings or excavations change (views redraw on it).
 var structures_version: int = 0
-## Supply is not simulated yet (Phase 1.5); towers fire without ammo.
-var infinite_ammo := true
+## Towers fire without ammunition when true (GameRules.infinite_ammo).
+var infinite_ammo := false
 
 ## Shots fired since the last [method drain_shots]: [from, to] in tile units.
 var shots: Array[PackedVector2Array] = []
 
 # Statistics.
 var kills: int = 0
+var rounds_fired: int = 0
 var leaked: int = 0
 var credits_earned: int = 0
 
@@ -87,6 +91,9 @@ func _init(registry: DataRegistry, world: WorldGrid, seed_value: int) -> void:
 	path.nodes_per_tick = rules.flow_nodes_per_tick
 	spatial = SpatialHash.new(grid.width, grid.height)
 	spawner = SpawnDirector.new(reg.spawning, reg.enemies, rng.fork("spawner"))
+	infinite_ammo = rules.infinite_ammo
+	belts = BeltNetwork.new(grid)
+	factory = FactorySystem.new(reg, grid, belts, occupancy, buildings)
 	_place_core()
 	_place_nests()
 	path.rebuild_now()
@@ -129,6 +136,8 @@ func tick(_tick: int = 0) -> void:
 	spatial.rebuild(enemies)
 	_progress_construction()
 	_progress_excavation()
+	factory.tick(dt)
+	belts.tick(dt)
 	_fire_towers()
 	_cleanup_enemies()
 	spatial.rebuild(enemies)  # Indices changed; keep queries between ticks valid.
@@ -205,6 +214,7 @@ func _progress_construction() -> void:
 				path.set_reserved(c, false)
 				path.set_blocked(c, true)
 		b.state = Building.State.ACTIVE
+		_activate(b)
 		done.append(b)
 	for b in done:
 		_pending.erase(b)
@@ -239,6 +249,9 @@ func _fire_towers() -> void:
 		b.cooldown -= dt
 		if b.cooldown > 0.0:
 			continue
+		if not infinite_ammo and b.ammo <= 0:
+			b.cooldown = 0.0
+			continue
 		var center := b.center()
 		var r := tower.range_tiles
 		var t := enemies.index_of(b.target_uid)
@@ -259,6 +272,9 @@ func _fire_towers() -> void:
 		var to := Vector2(enemies.x[t], enemies.y[t])
 		b.aim_angle = (to - center).angle()
 		shots.append(PackedVector2Array([center, to]))
+		rounds_fired += 1
+		if not infinite_ammo:
+			b.ammo -= 1
 		b.cooldown = maxf(b.cooldown, -dt) + 1.0 / tower.fire_rate
 
 
@@ -325,6 +341,8 @@ func check_place(def_id: StringName, at: Vector2i, rot: int = 0, moving: Buildin
 		var occ := occupancy[c]
 		if occ != 0 and (moving == null or occ != moving.id):
 			return ERR_OCCUPIED
+	if def.kind == &"drill" and factory.drill_yield(cells) < 0:
+		return ERR_NEEDS_ORE
 	if moving == null and credits < def.cost:
 		return ERR_CREDITS
 	if _enemies_near(Rect2(at, Building.footprint_size(def, rot))):
@@ -349,6 +367,8 @@ func place(def_id: StringName, at: Vector2i, rot: int = 0) -> String:
 	credits -= def.cost
 	var b := _add_building(def, at, rot)
 	b.invested = def.cost
+	if def.tower != null:
+		b.ammo = def.tower.starter_ammo
 	b.state = Building.State.CONSTRUCTING
 	b.timer = ceili(def.build_time * tick_rate)
 	if def.blocks_path:
@@ -471,8 +491,19 @@ func _add_building(def: BuildingDef, at: Vector2i, rot: int) -> Building:
 	return b
 
 
+## A building finished construction or redeployment and starts working.
+func _activate(b: Building) -> void:
+	if b.def.kind == &"belt":
+		belts.add_belt(b.cells[0], b.rotation)
+	factory.register(b)
+
+
 ## Frees the footprint of [param b] in occupancy and the path layers.
 func _vacate(b: Building) -> void:
+	if b.is_active():
+		if b.def.kind == &"belt":
+			belts.remove_belt(b.cells[0])
+		factory.unregister(b)
 	for c in b.cells:
 		occupancy[c] = 0
 		if b.def.blocks_path:
