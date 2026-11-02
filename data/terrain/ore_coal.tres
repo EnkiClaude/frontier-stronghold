@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="TerrainDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/terrain_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"ore_coal"
+code = 6
+display_name = "Coal"
+color = Color(0.16, 0.16, 0.16, 1)
+walkable = true
+buildable = true
+destructible = false
+drillable = true
+yield_item = &"coal"
+becomes = &""
