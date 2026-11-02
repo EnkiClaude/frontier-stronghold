@@ -268,11 +268,15 @@ func _fire_towers() -> void:
 			continue
 		b.target_uid = enemies.uid[t]
 		var def: EnemyDef = reg.enemies[enemies.type[t]]
+		var hp_before := enemies.hp[t]
 		enemies.hp[t] -= maxf(tower.damage - def.armor, tower.damage * 0.2)
+		if hp_before > 0.0 and enemies.hp[t] <= 0.0:
+			b.kills += 1
 		var to := Vector2(enemies.x[t], enemies.y[t])
 		b.aim_angle = (to - center).angle()
 		shots.append(PackedVector2Array([center, to]))
 		rounds_fired += 1
+		b.rounds_fired += 1
 		if not infinite_ammo:
 			b.ammo -= 1
 		b.cooldown = maxf(b.cooldown, -dt) + 1.0 / tower.fire_rate
@@ -531,6 +535,44 @@ func _enemy_on_cells(cells: PackedInt32Array) -> bool:
 		if cells.has(enemies.cell[i]) or cells.has(enemies.next[i]):
 			return true
 	return false
+
+
+## Items currently in the factory (belts, machine buffers, hands), by item index.
+func item_totals() -> PackedInt32Array:
+	var totals := PackedInt32Array()
+	totals.resize(reg.items.size())
+	totals.fill(0)
+	belts.ensure_built()
+	for line in belts.lines:
+		for item in line.items:
+			totals[item] += 1
+	for b: Building in buildings.values():
+		for item: int in b.inv_in:
+			totals[item] += b.inv_in[item]
+		for item: int in b.inv_out:
+			totals[item] += b.inv_out[item]
+		if b.held >= 0:
+			totals[b.held] += 1
+	return totals
+
+
+## Ammo summary over all towers that use ammo: [loaded, capacity, empty, low].
+func ammo_summary() -> PackedInt32Array:
+	var loaded := 0
+	var capacity := 0
+	var empty := 0
+	var low := 0
+	for b in _towers:
+		var t := b.def.tower
+		if t.ammo_item == &"" or b.state == Building.State.CONSTRUCTING:
+			continue
+		loaded += b.ammo
+		capacity += t.magazine_size
+		if b.ammo <= 0:
+			empty += 1
+		elif b.ammo < t.magazine_size / 4:
+			low += 1
+	return PackedInt32Array([loaded, capacity, empty, low])
 
 
 ## Collects and clears the shots fired since the last call (for effects).

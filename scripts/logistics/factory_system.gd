@@ -15,6 +15,9 @@ var drills: Array[Building] = []
 var crafters: Array[Building] = []
 var inserters: Array[Building] = []
 
+## Lifetime production per item index (mined or crafted).
+var produced := PackedInt32Array()
+
 ## Recipe resource -> {item index: count} caches.
 var _recipe_in: Dictionary = {}
 var _recipe_out: Dictionary = {}
@@ -26,6 +29,8 @@ func _init(registry: DataRegistry, world: WorldGrid, belt_network: BeltNetwork, 
 	belts = belt_network
 	occupancy = occ
 	buildings = all_buildings
+	produced.resize(reg.items.size())
+	produced.fill(0)
 
 
 func register(b: Building) -> void:
@@ -75,6 +80,7 @@ func _tick_drill(b: Building, dt: float) -> void:
 		b.held = drill_yield(b.cells)
 		if b.held < 0:
 			return
+		produced[b.held] += 1
 	if output_to_tile(front_tile(b), b.held, b):
 		b.held = -1
 
@@ -106,6 +112,7 @@ func _tick_crafter(b: Building, dt: float) -> void:
 		var outs := _outputs(recipe)
 		for item in outs:
 			b.inv_out[item] = b.inv_out.get(item, 0) + outs[item]
+			produced[item] += outs[item]
 		b.crafting = false
 		b.progress = 0.0
 

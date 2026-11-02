@@ -33,6 +33,9 @@ var held: int = -1
 # Tower runtime state.
 ## Rounds loaded.
 var ammo: int = 0
+## Lifetime statistics.
+var kills: int = 0
+var rounds_fired: int = 0
 var cooldown: float = 0.0
 var target_uid: int = -1
 var aim_angle: float = 0.0

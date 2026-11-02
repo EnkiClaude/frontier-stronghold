@@ -1,13 +1,19 @@
 class_name CameraController
 extends Camera2D
-## Factorio-style RTS camera: WASD/arrow panning, wheel zoom anchored at the
-## cursor, middle-mouse drag. Reads input actions only (see Keybinds).
+## RTS camera that works with mice, trackpads and (later) touch:
+## - Mouse wheel: zoom at the cursor. Smooth-scrolling devices (Magic Mouse,
+##   trackpads, high-resolution wheels) send many small events; each one is
+##   scaled by the event's `factor` so a gesture zooms smoothly, not in jumps.
+## - Trackpad pinch: zoom. Trackpad two-finger swipe: pan.
+## - WASD / arrows: pan. Middle-mouse drag: pan. Page Up/Down, +/- buttons: zoom.
 
 ## Pan speed in screen pixels per second (independent of zoom).
 @export var pan_speed: float = 1100.0
+## Zoom multiplier for one full wheel notch / keypress.
 @export var zoom_step: float = 1.15
-@export var min_zoom: float = 0.08
-@export var max_zoom: float = 4.0
+@export var max_zoom: float = 3.0
+## Hard lower limit; the effective minimum also stops at "whole map height visible".
+@export var min_zoom_floor: float = 0.12
 
 ## Playable area in world units; the view is kept inside it.
 var world_rect := Rect2()
@@ -25,12 +31,24 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("cam_zoom_in"):
-		zoom_at(_mouse_screen_pos(), zoom_step)
-		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("cam_zoom_out"):
-		zoom_at(_mouse_screen_pos(), 1.0 / zoom_step)
-		get_viewport().set_input_as_handled()
+	var handled := true
+	if event is InputEventMouseButton and (event as InputEventMouseButton).pressed \
+			and (event.button_index == MOUSE_BUTTON_WHEEL_UP or event.button_index == MOUSE_BUTTON_WHEEL_DOWN):
+		var mb := event as InputEventMouseButton
+		# factor is 0 on devices that don't report it: treat as one notch.
+		var notches := mb.factor if mb.factor > 0.0 else 1.0
+		var f := pow(zoom_step, minf(notches, 3.0))
+		zoom_at(mb.position, f if mb.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / f)
+	elif event is InputEventMagnifyGesture:
+		var mg := event as InputEventMagnifyGesture
+		zoom_at(mg.position, mg.factor)
+	elif event is InputEventPanGesture:
+		position += (event as InputEventPanGesture).delta * 12.0 / zoom.x
+		clamp_to_world()
+	elif event is InputEventKey and event.is_action_pressed("cam_zoom_in"):
+		zoom_by(zoom_step)
+	elif event is InputEventKey and event.is_action_pressed("cam_zoom_out"):
+		zoom_by(1.0 / zoom_step)
 	elif event.is_action_pressed("cam_drag"):
 		_dragging = true
 	elif event.is_action_released("cam_drag"):
@@ -38,23 +56,45 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif _dragging and event is InputEventMouseMotion:
 		position -= (event as InputEventMouseMotion).relative / zoom.x
 		clamp_to_world()
+	else:
+		handled = false
+	if handled and is_inside_tree():
+		get_viewport().set_input_as_handled()
+
+
+## Smallest allowed zoom: the whole strip height fits on screen, never less.
+func min_zoom() -> float:
+	if not world_rect.has_area():
+		return min_zoom_floor
+	var fit := _view_size().y / (world_rect.size.y + edge_margin * 2.0)
+	return maxf(min_zoom_floor, fit)
+
+
+## Zooms around the screen centre (buttons, keys).
+func zoom_by(factor: float) -> void:
+	zoom_at(_view_size() * 0.5, factor)
 
 
 ## Zooms by [param factor] keeping the world point under [param screen_pos] fixed.
 func zoom_at(screen_pos: Vector2, factor: float) -> void:
 	var old := zoom.x
-	var nz := clampf(old * factor, min_zoom, max_zoom)
+	var nz := clampf(old * factor, min_zoom(), max_zoom)
 	if is_equal_approx(nz, old):
 		return
-	var offset_px := screen_pos - get_viewport_rect().size * 0.5
+	var offset_px := screen_pos - _view_size() * 0.5
 	var world_at := position + offset_px / old
 	zoom = Vector2(nz, nz)
 	position = world_at - offset_px / nz
 	clamp_to_world()
 
 
-func _mouse_screen_pos() -> Vector2:
-	return get_viewport().get_mouse_position()
+func center_on(world_pos: Vector2) -> void:
+	position = world_pos
+	clamp_to_world()
+
+
+func _view_size() -> Vector2:
+	return get_viewport_rect().size if is_inside_tree() else Vector2(1600, 900)
 
 
 ## Keeps the visible area inside [member world_rect] (plus [member edge_margin]).
@@ -62,8 +102,10 @@ func _mouse_screen_pos() -> Vector2:
 func clamp_to_world() -> void:
 	if not world_rect.has_area():
 		return
+	if zoom.x < min_zoom():
+		zoom = Vector2.ONE * min_zoom()
 	var area := world_rect.grow(edge_margin)
-	var half := get_viewport_rect().size * 0.5 / zoom.x
+	var half := _view_size() * 0.5 / zoom.x
 	var lo := area.position + half
 	var hi := area.end - half
 	position.x = area.get_center().x if lo.x > hi.x else clampf(position.x, lo.x, hi.x)

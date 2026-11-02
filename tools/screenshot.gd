@@ -41,7 +41,9 @@ func _initialize() -> void:
 		MazeScenario.run(sim, seconds)
 		cam.position = Vector2(30, 71) * WorldGrid.TILE_PX
 		var ctrl: BuildController = main.get("controller")
-		ctrl.select_build(sim.reg.buildings_by_id[&"conveyor_belt"])
+		var tower := sim.building_at(Vector2i(26, 68))
+		if tower != null:
+			ctrl._set_selected(tower)
 	if scenario == "enemy" and sim.enemies.count == 0:
 		MazeScenario.run(sim, seconds)
 	if scenario == "enemy" and sim.enemies.count > 0:

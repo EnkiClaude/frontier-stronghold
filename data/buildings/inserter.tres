@@ -7,6 +7,7 @@ script = ExtResource("1_def")
 id = &"inserter"
 kind = &"inserter"
 display_name = "Inserter"
+description = "Moves one item at a time from the tile behind it to the tile in front (arrow). Only picks up what the target can use."
 size = Vector2i(1, 1)
 blocks_path = false
 cost = 10

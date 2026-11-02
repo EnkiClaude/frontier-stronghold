@@ -8,6 +8,7 @@ script = ExtResource("1_def")
 id = &"chain_gun"
 kind = &"tower"
 display_name = "Chain Gun"
+description = "Fast-firing tower, strong against light enemies. Blocks movement. Needs Ammo Magazines delivered by an inserter."
 size = Vector2i(2, 2)
 blocks_path = true
 cost = 100

@@ -4,7 +4,7 @@
 
 [resource]
 script = ExtResource("1_rules")
-start_credits = 400
+start_credits = 1500
 core_hp = 20
 sell_refund = 0.85
 undo_window = 10.0

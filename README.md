@@ -59,8 +59,9 @@ Mining Drill (on iron ore) → Belt → Inserter → Smelter → Inserter → Am
 
 | Action | Default |
 |---|---|
-| Pan camera | W A S D / arrow keys, or middle-mouse drag |
-| Zoom (towards cursor) | Mouse wheel / Page Up / Page Down |
+| Pan camera | W A S D / arrow keys, middle-mouse drag, two-finger trackpad swipe, or click the minimap |
+| Zoom (towards cursor) | Mouse wheel, trackpad pinch, Page Up / Page Down, or the Zoom +/− buttons |
+| Jump to the Core | `H` (or the Core button) |
 | Select building / place (drag for lines) | Left mouse |
 | Cancel tool / sell building under cursor | Right mouse |
 | Build: Wall, Chain Gun, Belt, Inserter, Drill, Smelter, Ammo Factory | `1`–`7` (or the toolbar) |
@@ -80,6 +81,10 @@ Key bindings are stored in `user://keybindings.cfg` and can be overridden there.
 tools/export.sh            # macOS, Windows and Linux into build/
 tools/export.sh macOS      # just one platform
 ```
+
+Builds are named `FrontierStronghold-v<version>-<platform>`. The version lives
+in `project.godot` (`application/config/version`), and every change is listed
+in [CHANGELOG.md](CHANGELOG.md).
 
 You need the Godot 4.7.2 export templates (in the editor: *Editor → Manage
 Export Templates → Download*). You can also export from the editor via

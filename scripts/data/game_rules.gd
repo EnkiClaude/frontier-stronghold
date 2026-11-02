@@ -2,7 +2,7 @@ class_name GameRules
 extends Resource
 ## Global balance and rule numbers (res://data/rules/default_rules.tres).
 
-@export var start_credits: int = 400
+@export var start_credits: int = 1500
 @export var core_hp: int = 20
 @export_group("Construction")
 ## Fraction of invested credits refunded on sale.

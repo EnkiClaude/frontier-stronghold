@@ -7,6 +7,7 @@ script = ExtResource("1_def")
 id = &"conveyor_belt"
 kind = &"belt"
 display_name = "Conveyor Belt"
+description = "Moves items in the arrow direction. Drag to lay a line. Enemies walk over belts."
 size = Vector2i(1, 1)
 blocks_path = false
 cost = 2

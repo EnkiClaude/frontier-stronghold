@@ -3,7 +3,7 @@ extends Resource
 ## Pacing of enemy spawning (res://data/rules/*.tres).
 
 ## Seconds before the first enemy appears.
-@export var grace_period: float = 25.0
+@export var grace_period: float = 45.0
 @export_group("Trickle")
 ## Seconds between spawns per nest at the start.
 @export var trickle_interval_start: float = 4.0

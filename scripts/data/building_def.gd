@@ -6,6 +6,8 @@ extends Resource
 ## Behaviour: core, wall, tower, belt, inserter, drill, crafter.
 @export var kind: StringName = &"wall"
 @export var display_name: String = ""
+## One or two sentences shown in the info panel.
+@export_multiline var description: String = ""
 ## Footprint in tiles before rotation.
 @export var size: Vector2i = Vector2i.ONE
 ## Blocks enemy movement (walls, towers). Belts and machines do not.

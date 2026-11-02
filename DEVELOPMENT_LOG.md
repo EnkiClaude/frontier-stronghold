@@ -217,3 +217,37 @@ enemy movement needs optimizing (TODO).
 - Is keeping a supply line running fun, or a chore? (The Phase 1.5 question.)
 - Is a 50-round starter enough to survive until the first ammo line is running?
 - Are the costs right? (Drill 40, Smelter 50, Ammo Factory 60, Inserter 10, Belt 2, all in `data/buildings`.)
+
+## 2026-11-02 — v0.2.1: first human playtest feedback
+
+### Feedback (macOS)
+1. "It zoomed all the way out and I could not zoom back in."
+2. Not enough credits to wall off and build at the start.
+3. Couldn't see enemies when zoomed out.
+4. Wanted a resources panel and details of the selected tower (e.g. its ammo).
+5. Wanted version numbers on delivered files.
+
+### Diagnosis and changes
+1. **Zoom:** I can't reproduce Mac input here. The likely causes, all fixed:
+   - Every wheel event counted as a full 15% step. Trackpads and Magic Mice
+     send dozens of small events per gesture, so one flick zoomed out about
+     16×. Zoom now uses the event's `factor` (scroll amount).
+   - Pinch (`InputEventMagnifyGesture`) and two-finger swipe
+     (`InputEventPanGesture`) weren't handled. Now they zoom and pan.
+   - The minimum zoom (0.08) was absurdly far out. It now stops when the map height fills the screen.
+   - No HiDPI scaling. Stretch mode is now `canvas_items`, so Retina renders at the intended size.
+   - Fallbacks: Zoom +/− buttons, an `H`/Core button, a clickable minimap and Page Up/Down.
+   - `test_camera` sends simulated smooth-scroll, pinch and pan events, and
+     checks that zooming back in from the minimum works.
+2. **Balance:** start credits 400 → 1500; grace period 25 s → 45 s with an on-screen countdown.
+3. **Visibility:** enemies are at least 7 px on screen, plus a minimap with red enemy dots.
+4. **Panels:**
+   - Left: resources, with item totals, production per minute and tower ammo.
+   - Right: info for the selection or the selected tool. Towers show damage
+     and type, fire rate, DPS, range, targeting, ammo type, loaded rounds,
+     kills and rounds fired.
+   - `BuildingDef.description` was added for every building.
+5. **Versioning:** `application/config/version` drives the window title, the HUD
+   and the export file names (`FrontierStronghold-v0.2.1-macOS.zip`). `CHANGELOG.md` was added.
+
+Tests: 92 pass (new: camera input, tower stats, item totals and production, start-resource floor).

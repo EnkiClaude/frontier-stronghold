@@ -29,7 +29,13 @@ var _tick_usec_avg := 0.0
 var _worldgen_ms := 0.0
 
 
+## Game version from project settings (application/config/version).
+static func version() -> String:
+	return str(ProjectSettings.get_setting("application/config/version", "dev"))
+
+
 func _ready() -> void:
+	get_window().title = "Frontier Stronghold v%s" % version()
 	registry = DataRegistry.load_default()
 	for err in registry.errors:
 		push_error("Data: " + err)
@@ -91,7 +97,7 @@ func _ready() -> void:
 
 	hud = Hud.new()
 	add_child(hud)
-	hud.setup(sim, clock, controller)
+	hud.setup(sim, clock, controller, camera)
 	hud.restart_requested.connect(func() -> void: get_tree().reload_current_scene())
 
 	debug_overlay = DebugOverlay.new()
@@ -123,6 +129,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_set_speed_index(_speed_index + 1)
 	elif event.is_action_pressed("speed_down"):
 		_set_speed_index(_speed_index - 1)
+	elif event.is_action_pressed("cam_home"):
+		camera.center_on(sim.core.center() * WorldGrid.TILE_PX)
 	elif event.is_action_pressed("toggle_debug"):
 		debug_overlay.visible = not debug_overlay.visible
 

@@ -6,6 +6,9 @@ extends Node2D
 
 ## Floats per instance: 8 for a 2D transform + 4 for colour.
 const STRIDE := 12
+## Enemies never get smaller than this on screen (pixels), so they stay
+## visible when zoomed far out.
+const MIN_SCREEN_PX := 7.0
 
 var sim: GameSim
 var clock: SimClock
@@ -33,14 +36,17 @@ func _process(_delta: float) -> void:
 	ensure_capacity(_bodies.multimesh, n, _body_buf)
 	ensure_capacity(_bars.multimesh, n * 2, _bar_buf)
 	var bars := 0
+	var px_per_tile := get_global_transform_with_canvas().get_scale().x
+	var min_size := MIN_SCREEN_PX / maxf(px_per_tile, 0.001)
+	var show_bars := px_per_tile >= 12.0  # Health bars only when close enough to read.
 	for i in n:
 		var def: EnemyDef = sim.reg.enemies[e.type[i]]
 		var px := lerpf(e.prev_x[i], e.x[i], a)
 		var py := lerpf(e.prev_y[i], e.y[i], a)
-		var s := def.radius * 2.0
+		var s := maxf(def.radius * 2.0, min_size)
 		write_instance(_body_buf, i, px, py, s, s, def.color)
 		var frac := e.hp[i] / e.max_hp[i]
-		if frac < 0.999:
+		if show_bars and frac < 0.999:
 			var w := maxf(0.6, s)
 			var top := py - def.radius - 0.18
 			write_instance(_bar_buf, bars, px, top, w, 0.1, Color(0, 0, 0, 0.75))
