@@ -324,3 +324,7 @@ Tests: 106 pass (new: pipette, locked swipe-sell, transfer timestamps).
 ### 2026-11-03 — v0.2.4 confirmed on macOS
 The player confirmed that enemies and belt items are now visible on their Mac.
 ADR-006 (culled canvas drawing instead of MultiMesh) is verified on the target platform.
+
+### 2026-11-03 — Playtest note
+The player reports the early game is now doable with 1,500 starting credits and
+the closer nests (v0.2.3 balance). No economy tweak is needed for now; revisit in Phase 2.
