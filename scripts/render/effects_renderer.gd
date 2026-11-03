@@ -24,6 +24,17 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
+	# Supply drones: a small craft with the ammo it carries.
+	for d in sim.supply.drones:
+		var dir: Vector2 = (d.target - d.pos).normalized()
+		var side := Vector2(-dir.y, dir.x)
+		draw_line(d.pos - dir * 0.6, d.pos, Color(0.6, 0.95, 1.0, 0.35), 0.06)
+		draw_colored_polygon(PackedVector2Array([d.pos + dir * 0.28, d.pos - dir * 0.2 + side * 0.2, d.pos - dir * 0.2 - side * 0.2]), Color(0.75, 0.95, 1.0))
+		var icon := DataRegistry.art(sim.reg.items[d.item].icon)
+		if icon != null:
+			draw_texture_rect(icon, Rect2(d.pos + Vector2(0.1, 0.1), Vector2(0.3, 0.3)), false)
+		else:
+			draw_rect(Rect2(d.pos + Vector2(0.1, 0.1), Vector2(0.24, 0.24)), sim.reg.items[d.item].color)
 	for f in _fx:
 		var e: Dictionary = f[0]
 		var a: float = f[1] / f[2]

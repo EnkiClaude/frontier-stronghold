@@ -22,3 +22,7 @@ start_items = {
 &"brick": 10
 }
 excavate_stone = 2
+supply_range = 45.0
+drone_speed = 10.0
+supply_max_items = 5
+supply_interval = 0.5

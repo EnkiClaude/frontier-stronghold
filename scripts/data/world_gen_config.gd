@@ -27,4 +27,7 @@ extends Resource
 @export_range(-1.0, 1.0) var water_threshold: float = 0.62
 
 @export_group("Ores")
+## Ore thresholds drop by this much from the Core zone to the east edge, so
+## deposits get denser (more ore) the further you expand.
+@export var ore_density_gain: float = 0.12
 @export var ore_spawns: Array[OreSpawn] = []

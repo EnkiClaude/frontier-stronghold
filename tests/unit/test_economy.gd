@@ -137,4 +137,8 @@ func test_toolbar_tabs_cover_all_buildings() -> void:
 		assert_true(defs.size() >= 2, "tab %s" % cat)
 		assert_true(defs.size() <= 9, "tab %s fits hotkeys 1-9" % cat)
 		total += defs.size()
-	assert_eq(total, reg.buildings_by_id.size() - 1, "every building except the Core is buildable")
+	var auto_only := 0
+	for def: BuildingDef in reg.buildings_by_id.values():
+		if def.kind == &"core" or def.kind == &"tunnel":
+			auto_only += 1
+	assert_eq(total, reg.buildings_by_id.size() - auto_only, "every building except Core/tunnels is on the toolbar")

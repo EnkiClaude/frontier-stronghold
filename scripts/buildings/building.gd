@@ -37,6 +37,8 @@ var last_out_tick: int = -100000
 ## Drill: tile the last item was delivered to.
 var last_out_tile: int = -1
 
+## Building-specific variant chosen at placement (belt tunnel: 0 entrance, 1 exit).
+var variant: int = 0
 ## Crafter: index into def.recipes of the active recipe.
 var recipe_index: int = 0
 ## Materials paid at construction (item id -> count), refunded on sale.

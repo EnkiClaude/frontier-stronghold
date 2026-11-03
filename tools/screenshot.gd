@@ -92,6 +92,46 @@ func _initialize() -> void:
 		sim.skip_preparation()
 		MazeScenario.run(sim, seconds)
 		cam.position = Vector2(30, cy) * WorldGrid.TILE_PX
+	if scenario == "logistics":
+		sim.credits = 100000
+		var ground := sim.reg.terrain_code(&"ground")
+		var cy := sim.core.origin.y + 1
+		for x in range(9, 70):
+			for y in range(cy - 25, cy + 15):
+				sim.grid.set_terrain(x, y, ground)
+				sim.path.terrain_changed(sim.grid.idx(x, y))
+		var mag := sim.reg.item_index(&"ammo_magazine")
+		var ore := sim.reg.item_index(&"iron_ore")
+		sim.add_to_core(sim.reg.item_index(&"brick"), 50)
+		sim.place(&"storage", Vector2i(24, cy - 14))
+		for k in 4:
+			sim.place(&"chain_gun", Vector2i(36 + k * 5, cy - 6))
+		# A vertical belt (south) crossed by an eastward belt via a tunnel, into a splitter.
+		for y in range(cy - 22, cy - 13):
+			sim.place(&"conveyor_belt", Vector2i(44, y), 1)
+		var ctrl: BuildController = main.get("controller")
+		ctrl.select_build(sim.reg.buildings_by_id[&"conveyor_belt"])
+		ctrl.mouse_override = Vector2(38.5, cy - 18 + 0.5)
+		ctrl._process(0.016)
+		ctrl._on_primary_pressed()
+		ctrl.mouse_override = Vector2(50.5, cy - 18 + 0.5)
+		ctrl._process(0.016)
+		ctrl._commit_drag()
+		sim.place(&"splitter", Vector2i(51, cy - 18), 0)
+		for k in 4:
+			sim.place(&"conveyor_belt", Vector2i(51, cy - 19 - k), 3)
+			sim.place(&"conveyor_belt", Vector2i(52 + k, cy - 18), 0)
+			sim.place(&"conveyor_belt", Vector2i(51, cy - 17 + k), 1)
+		MazeScenario.run(sim, 4.0)
+		sim.building_at(Vector2i(24, cy - 14)).inv_out[mag] = 200
+		for k in 4:
+			sim.building_at(Vector2i(36 + k * 5, cy - 6)).ammo = 0
+		for k in 8:
+			sim.belts.insert_at_tile(sim.grid.idx(38 + k / 3, cy - 18), ore, 0.1 + 0.3 * (k % 3))
+			sim.belts.insert_at_tile(sim.grid.idx(44, cy - 22 + k / 3), sim.reg.item_index(&"coal"), 0.1 + 0.3 * (k % 3))
+		MazeScenario.run(sim, seconds)
+		ctrl.cancel()
+		cam.position = Vector2(42, cy - 12) * WorldGrid.TILE_PX
 	if scenario == "enemy" and sim.enemies.count == 0:
 		MazeScenario.run(sim, seconds)
 	if scenario == "enemy" and sim.enemies.count > 0:

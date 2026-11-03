@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/building_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"belt_tunnel"
+kind = &"tunnel"
+category = &"logistics"
+display_name = "Belt Tunnel"
+description = "Carries a belt under up to 4 tiles of other belts or buildings. Placed automatically when you drag a belt across another belt."
+size = Vector2i(1, 1)
+blocks_path = false
+cost = 8
+material_cost = {}
+build_time = 0.3
+color = Color(0.25, 0.27, 0.32, 1)
+toolbar_slot = 0
+directional = true

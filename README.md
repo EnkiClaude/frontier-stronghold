@@ -101,8 +101,17 @@ under **Credits**. Launch with `--no-art` to see the plain-colour fallback.
 | Steel (2 iron plate + coal) | — | Sniper rounds; Sniper, Tesla and Lightning construction |
 
 Advanced buildings cost credits **plus materials** from your stockpile (the
-Core plus Storage buildings). Arms can deliver items into the Core or Storage
-and take them out again. A **Recycler** turns surplus items into credits.
+Core plus Storage buildings). Belts pointing into a building deliver into it,
+and arms can put items in and take them out. A **Recycler** turns surplus
+items into credits.
+
+**Ammo supply:** you don't need a belt to every tower. Deliver ammo into the
+Core or a Storage, and **supply drones** refill every tower within 45 tiles.
+For a defense line far from the base, build a Storage near it and keep it stocked.
+
+**Belt routing:** drag a belt across another belt and a **tunnel** is placed
+automatically, carrying the line underneath (up to 4 tiles). A **Splitter**
+sends items left, straight and right in turn.
 
 ### Towers
 

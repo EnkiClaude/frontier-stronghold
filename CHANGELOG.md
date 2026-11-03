@@ -5,6 +5,24 @@ goes up for each development phase and PATCH for fixes and playtest feedback.
 The version is set in `project.godot` (`application/config/version`), and it
 appears in the window title, the HUD and every exported file name.
 
+## v0.3.1 — 2026-11-03 (playtest feedback: logistics and pacing)
+Design: `docs/decisions/ADR-008-supply-drones-belt-routing-waves.md`.
+- **Supply drones:** ammo towers refill automatically from the Core or any Storage within 45 tiles.
+  - Drones carry up to 5 items per trip.
+  - Production volume is now what keeps a defense running.
+  - A forward Storage supplies a distant defense line.
+  - The tower info panel shows where its supply comes from, or why it has none.
+- **Belts deliver into buildings** they point at (Core, Storage, machines, towers, generators, recyclers).
+- **Splitter** (Logistics tab): sends items left, straight and right in turn.
+- **Belt tunnels:** drag a belt across other belts (or buildings, up to 4 tiles)
+  and a tunnel entrance and exit are placed automatically, so the line passes
+  under them. The ghost previews the tunnel ends.
+- **Waves with gaps:** the constant trickle is now a small wave every 20 s, and
+  every assault is followed by a 20 s lull. The status bar shows the countdowns.
+- **More ore:** 7 bigger starter patches near the Core (2 iron, 2 copper,
+  2 coal, 1 stone). Natural deposits get denser the further east you go.
+- **The enemy route preview updates instantly, even while paused**: it includes walls still under construction.
+
 ## v0.3.0 — 2026-11-03 (towers, resources, storage, power)
 See `docs/decisions/ADR-007-resources-towers-power.md` for the design.
 

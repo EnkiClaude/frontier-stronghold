@@ -366,3 +366,27 @@ stronger but need deeper supply chains.
 
 Benchmarks are unchanged (sim tick about 5.3 ms with 2,000 enemies).
 Not yet: save/load, powered machines, Regenerator/Fast/Boss enemies, art for the new buildings.
+
+## 2026-11-03 — v0.3.1: playtest feedback (logistics, pacing, ore)
+
+| Feedback | Change |
+|---|---|
+| Belts can't cross | `belt_tunnel` entrance/exit pairs; `BeltNetwork` links an entrance to its exit (max gap 4). The build controller auto-plans tunnels when a dragged belt crosses belts or buildings. |
+| Splitter | 1×1 round-robin splitter (left, front, right); belts feed it via the new belt-to-building sink. |
+| Belting ammo to every tower feels off | `SupplySystem` drones take ammo from the nearest stocked Core/Storage within 45 tiles. Items are reserved at launch, delivered on arrival and returned to the Core if the tower is gone. |
+| No gap between waves | Small waves every 20 s plus a 20 s lull after each assault (`SpawnDirector` rewritten; the trickle is gone). |
+| More ore near the base | 7 starter patches (two each of iron, copper, coal; one stone), bigger radii. |
+| Denser ore when expanding | Ore threshold drops by up to 0.12 towards the east (`ore_density_gain`). Test: the far-east band has at least 1.5× the ore of the band next to the base. |
+| Route doesn't update while paused | The displayed route is computed from `plan_passable` (counts walls under construction) whenever structures change. |
+
+Bugs found while testing:
+- A lull could be followed by up to 20 s of extra quiet. Waves now resume right after the lull.
+- Several tests had to be adapted to the new rules (no trickle, auto-only tunnels).
+
+Tests: 137 pass (new: `test_routing`, wave/lull tests, ore-density test).
+
+**Performance regression found and fixed before release:** the sim tick's p95
+jumped from about 7 ms to 16 ms. The cause: every 0.5 s, each tower's supply
+check called `stockpile_buildings()`, which scanned all buildings
+(45 towers × 653 buildings). Active Storages are now kept in a list
+(`_storages`), and supply is skipped in unlimited-ammo mode. p95 is back to 8.6 ms.

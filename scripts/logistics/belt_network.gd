@@ -11,6 +11,12 @@ const SPACING := 0.25
 const EPS := 0.0001
 ## Rotation -> direction (0 = east, 1 = south, 2 = west, 3 = north).
 const DIRS: Array[Vector2i] = [Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(0, -1)]
+## Tunnel roles.
+const ROLE_BELT := 0
+const ROLE_TUNNEL_IN := 1
+const ROLE_TUNNEL_OUT := 2
+## Max tiles between a tunnel entrance and its exit.
+const TUNNEL_MAX_GAP := 4
 
 
 class Line:
@@ -25,6 +31,8 @@ class Line:
 	var out_line: int = -1
 	## Position in [member out_line] where items enter.
 	var out_offset: float = 0.0
+	## Dead-end line pointing into a non-belt tile: items are offered to [member BeltNetwork.sink].
+	var sink_tile: int = -1
 
 
 var grid: WorldGrid
@@ -32,6 +40,11 @@ var grid: WorldGrid
 var speed: float = 1.875
 ## Tile -> rotation of every active belt.
 var dir_of: Dictionary = {}
+## Tile -> ROLE_TUNNEL_IN / ROLE_TUNNEL_OUT for tunnel tiles (plain belts absent).
+var role_of: Dictionary = {}
+## Receives items from lines that end pointing into a non-belt tile:
+## func(tile: int, item: int) -> bool (true = accepted). Set by GameSim.
+var sink: Callable
 var lines: Array[Line] = []
 ## Tile -> index of its line (-1 = no belt).
 var line_at := PackedInt32Array()
@@ -51,15 +64,39 @@ func _init(world: WorldGrid) -> void:
 
 # --- Layout ------------------------------------------------------------------
 
-func add_belt(tile: int, rotation: int) -> void:
+func add_belt(tile: int, rotation: int, role: int = ROLE_BELT) -> void:
 	dir_of[tile] = rotation % 4
+	if role == ROLE_BELT:
+		role_of.erase(tile)
+	else:
+		role_of[tile] = role
 	_dirty = true
 
 
 ## Removes a belt; items on that tile are lost.
 func remove_belt(tile: int) -> void:
+	role_of.erase(tile)
 	if dir_of.erase(tile):
 		_dirty = true
+
+
+## Exit tile paired with tunnel entrance [param tile], or -1.
+func tunnel_exit(tile: int) -> int:
+	if role_of.get(tile, ROLE_BELT) != ROLE_TUNNEL_IN:
+		return -1
+	var rot: int = dir_of[tile]
+	var cur := tile
+	for k in TUNNEL_MAX_GAP + 1:
+		cur = neighbor(cur, rot)
+		if cur < 0:
+			return -1
+		if dir_of.get(cur, -1) == rot:
+			var role: int = role_of.get(cur, ROLE_BELT)
+			if role == ROLE_TUNNEL_OUT:
+				return cur
+			if role == ROLE_TUNNEL_IN:
+				return -1
+	return -1
 
 
 func has_belt(tile: int) -> bool:
@@ -102,6 +139,8 @@ func _rebuild() -> void:
 	for t: int in tiles:
 		var rot: int = dir_of[t]
 		var s := neighbor(t, rot)
+		if role_of.get(t, ROLE_BELT) == ROLE_TUNNEL_IN:
+			s = tunnel_exit(t)  # Items pass under whatever is in between.
 		if s >= 0 and dir_of.has(s) and (int(dir_of[s]) + 2) % 4 != rot:
 			succ[t] = s
 			if not feeders.has(s):
@@ -114,7 +153,13 @@ func _rebuild() -> void:
 			continue
 		var f: Array = feeders[t]
 		var back := neighbor(t, (int(dir_of[t]) + 2) % 4)
-		if f.has(back):
+		var tunnel_in := -1
+		for src in f:
+			if role_of.get(src, ROLE_BELT) == ROLE_TUNNEL_IN:
+				tunnel_in = src
+		if role_of.get(t, ROLE_BELT) == ROLE_TUNNEL_OUT and tunnel_in >= 0:
+			line_pred[t] = tunnel_in
+		elif f.has(back):
 			line_pred[t] = back
 		elif f.size() == 1:
 			line_pred[t] = f[0]
@@ -142,6 +187,10 @@ func _rebuild() -> void:
 		var last := line.tiles[line.tiles.size() - 1]
 		var s: int = succ.get(last, -1)
 		if s < 0:
+			if role_of.get(last, ROLE_BELT) != ROLE_TUNNEL_IN:
+				var front := neighbor(last, int(dir_of[last]))
+				if front >= 0 and not dir_of.has(front):
+					line.sink_tile = front
 			continue
 		line.out_line = line_at[s]
 		line.out_offset = float(index_at[s]) + (0.0 if line_pred.get(s, -1) == last else 0.5)
@@ -173,6 +222,12 @@ func tick(dt: float) -> void:
 						q = length - EPS  # Blocked: wait at the edge.
 				else:
 					var limit := length - SPACING * 0.5  # Dead end: stop on the belt.
+					if q >= limit and line.sink_tile >= 0 and sink.is_valid() and sink.call(line.sink_tile, line.items[i]):
+						# Delivered into the building the belt points at.
+						pos.resize(i)
+						line.items.resize(i)
+						i -= 1
+						continue
 					if q > limit:
 						q = maxf(limit, pos[i])
 			else:

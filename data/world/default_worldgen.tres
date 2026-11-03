@@ -7,29 +7,33 @@
 script = ExtResource("2_ore")
 terrain_id = &"ore_iron"
 frequency = 0.07
-threshold = 0.68
-starter_patch_radius = 5
+threshold = 0.64
+starter_patch_radius = 6
+starter_patches = 2
 
 [sub_resource type="Resource" id="ore_copper"]
 script = ExtResource("2_ore")
 terrain_id = &"ore_copper"
 frequency = 0.07
-threshold = 0.7
-starter_patch_radius = 4
+threshold = 0.66
+starter_patch_radius = 5
+starter_patches = 2
 
 [sub_resource type="Resource" id="ore_coal"]
 script = ExtResource("2_ore")
 terrain_id = &"ore_coal"
 frequency = 0.07
-threshold = 0.72
-starter_patch_radius = 4
+threshold = 0.68
+starter_patch_radius = 5
+starter_patches = 2
 
 [sub_resource type="Resource" id="ore_stone"]
 script = ExtResource("2_ore")
 terrain_id = &"ore_stone"
 frequency = 0.07
-threshold = 0.74
-starter_patch_radius = 3
+threshold = 0.7
+starter_patch_radius = 4
+starter_patches = 1
 
 [resource]
 script = ExtResource("1_cfg")
@@ -40,6 +44,7 @@ nest_clear_cols = 12
 rock_frequency = 0.035
 rock_threshold = 0.22
 rock_octaves = 3
+ore_density_gain = 0.12
 water_frequency = 0.02
 water_threshold = 0.62
 ore_spawns = Array[ExtResource("2_ore")]([SubResource("ore_iron"), SubResource("ore_copper"), SubResource("ore_coal"), SubResource("ore_stone")])

@@ -15,6 +15,7 @@ var drills: Array[Building] = []
 var crafters: Array[Building] = []
 var inserters: Array[Building] = []
 var recyclers: Array[Building] = []
+var splitters: Array[Building] = []
 ## Credits earned by recyclers since GameSim last collected them.
 var recycled_credits: int = 0
 ## Lifetime credits earned by recycling.
@@ -48,6 +49,8 @@ func register(b: Building) -> void:
 			inserters.append(b)
 		&"recycler":
 			recyclers.append(b)
+		&"splitter":
+			splitters.append(b)
 
 
 func unregister(b: Building) -> void:
@@ -55,6 +58,7 @@ func unregister(b: Building) -> void:
 	crafters.erase(b)
 	inserters.erase(b)
 	recyclers.erase(b)
+	splitters.erase(b)
 
 
 ## Current simulation tick (set by GameSim before [method tick]); used to
@@ -71,6 +75,8 @@ func tick(dt: float) -> void:
 		_tick_inserter(b, dt)
 	for b in recyclers:
 		_tick_recycler(b, dt)
+	for b in splitters:
+		_tick_splitter(b)
 
 
 # --- Drills ------------------------------------------------------------------
@@ -150,6 +156,32 @@ func _tick_crafter(b: Building, dt: float) -> void:
 			produced[item] += outs[item]
 		b.crafting = false
 		b.progress = 0.0
+
+
+# --- Splitters ---------------------------------------------------------------
+
+## Output tiles of a splitter in round-robin order: left, front, right.
+func splitter_outputs(b: Building) -> PackedInt32Array:
+	var d := BeltNetwork.DIRS[b.rotation % 4]
+	var out := PackedInt32Array()
+	for off: Vector2i in [Vector2i(d.y, -d.x), d, Vector2i(-d.y, d.x)]:
+		var c := b.origin + off
+		out.append(grid.idx(c.x, c.y) if grid.in_bounds(c.x, c.y) else -1)
+	return out
+
+
+func _tick_splitter(b: Building) -> void:
+	if b.held < 0:
+		return
+	var outs := splitter_outputs(b)
+	for k in 3:
+		var i := (b.output_cursor + k) % 3
+		if outs[i] >= 0 and output_to_tile(outs[i], b.held, b):
+			b.held = -1
+			b.output_cursor = (i + 1) % 3
+			b.last_out_tick = now
+			b.last_out_tile = outs[i]
+			return
 
 
 # --- Recyclers ---------------------------------------------------------------
@@ -245,6 +277,8 @@ func accepts(b: Building, item: int) -> bool:
 			return reg.items[item].value > 0 and queued < 10
 		&"generator":
 			return reg.item_index(b.def.fuel_item) == item and b.inv_in.get(item, 0) < b.def.input_limit
+		&"splitter":
+			return b.held < 0
 	if b.def.tower != null:
 		var t := b.def.tower
 		return reg.item_index(t.ammo_item) == item and b.ammo + t.rounds_per_item <= t.magazine_size
@@ -257,6 +291,8 @@ func give(b: Building, item: int) -> void:
 		b.ammo += b.def.tower.rounds_per_item
 	elif b.def.kind == &"storage" or b.def.kind == &"core":
 		b.inv_out[item] = b.inv_out.get(item, 0) + 1
+	elif b.def.kind == &"splitter":
+		b.held = item
 	else:
 		b.inv_in[item] = b.inv_in.get(item, 0) + 1
 

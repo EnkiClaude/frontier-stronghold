@@ -37,6 +37,7 @@ var spawner: SpawnDirector
 var belts: BeltNetwork
 var factory: FactorySystem
 var power: PowerSystem
+var supply := SupplySystem.new()
 var rng: SimRng
 var _spawn_rng: SimRng
 
@@ -100,6 +101,7 @@ func _init(registry: DataRegistry, world: WorldGrid, seed_value: int) -> void:
 	belts = BeltNetwork.new(grid)
 	factory = FactorySystem.new(reg, grid, belts, occupancy, buildings)
 	power = PowerSystem.new(reg)
+	belts.sink = func(tile: int, item: int) -> bool: return factory.output_to_tile(tile, item)
 	_place_core()
 	for id in rules.start_items:
 		add_to_core(reg.item_index(StringName(id)), int(rules.start_items[id]))
@@ -155,6 +157,7 @@ func tick(_tick: int = 0) -> void:
 	for c in power.consumers:
 		c.wants_power = spatial.query(enemies, c.center().x, c.center().y, c.def.tower.range_tiles).size() > 0
 	power.tick(dt)
+	supply.tick(self, dt)
 	_fire_towers()
 	_cleanup_enemies()
 	spatial.rebuild(enemies)  # Indices changed; keep queries between ticks valid.
@@ -484,10 +487,21 @@ func check_place(def_id: StringName, at: Vector2i, rot: int = 0, moving: Buildin
 
 ## Places a new structure (pays its cost). Returns "" on success.
 ## Placing a belt or arm over the same kind re-orients it for free.
-func place(def_id: StringName, at: Vector2i, rot: int = 0) -> String:
+func place(def_id: StringName, at: Vector2i, rot: int = 0, variant: int = 0) -> String:
 	var existing := _replaceable(def_id, at)
 	if existing != null and not game_over:
+		existing.variant = variant if existing.def.kind == &"tunnel" else existing.variant
+		if existing.def.kind == &"tunnel" and existing.is_active():
+			belts.add_belt(existing.cells[0], posmod(rot, 4), BeltNetwork.ROLE_TUNNEL_IN + variant)
 		return _reorient(existing, rot)
+	# A tunnel end may replace a plain belt (auto-tunnelling while dragging belts).
+	var under := building_at(at)
+	if under != null and under.def.kind == &"belt" and reg.buildings_by_id.get(def_id) != null \
+			and reg.buildings_by_id[def_id].kind == &"tunnel" and not game_over:
+		credits += under.invested
+		_vacate(under)
+		buildings.erase(under.id)
+		structures_version += 1
 	var err := check_place(def_id, at, rot)
 	if err != "":
 		return err
@@ -495,6 +509,7 @@ func place(def_id: StringName, at: Vector2i, rot: int = 0) -> String:
 	credits -= def.cost
 	take_materials(def.material_cost)
 	var b := _add_building(def, at, rot)
+	b.variant = variant
 	b.invested = def.cost
 	b.invested_materials = def.material_cost.duplicate()
 	if def.tower != null:
@@ -524,18 +539,23 @@ func _reorient(b: Building, rot: int) -> String:
 	b.rotation = rot
 	if b.def.kind == &"belt" and b.is_active():
 		belts.add_belt(b.cells[0], rot)  # Items on the tile are kept.
+	elif b.def.kind == &"tunnel" and b.is_active():
+		belts.add_belt(b.cells[0], rot, BeltNetwork.ROLE_TUNNEL_IN + b.variant)
 	structures_version += 1
 	return ""
 
 
 # --- Stockpile (Core + Storage) ---------------------------------------------
 
+## Active Storage buildings (maintained on activate/vacate; avoids scanning
+## every building - supply drones query this often).
+var _storages: Array[Building] = []
+
+
 ## Buildings whose contents form the stockpile, Core first.
 func stockpile_buildings() -> Array[Building]:
 	var out: Array[Building] = [core]
-	for b: Building in buildings.values():
-		if b.def.kind == &"storage" and b.is_active():
-			out.append(b)
+	out.append_array(_storages)
 	return out
 
 
@@ -743,17 +763,22 @@ func _add_building(def: BuildingDef, at: Vector2i, rot: int) -> Building:
 func _activate(b: Building) -> void:
 	if b.def.kind == &"belt":
 		belts.add_belt(b.cells[0], b.rotation)
+	elif b.def.kind == &"tunnel":
+		belts.add_belt(b.cells[0], b.rotation, BeltNetwork.ROLE_TUNNEL_IN + b.variant)
 	factory.register(b)
 	power.register(b)
+	if b.def.kind == &"storage":
+		_storages.append(b)
 
 
 ## Frees the footprint of [param b] in occupancy and the path layers.
 func _vacate(b: Building) -> void:
 	if b.is_active():
-		if b.def.kind == &"belt":
+		if b.def.kind == &"belt" or b.def.kind == &"tunnel":
 			belts.remove_belt(b.cells[0])
 		factory.unregister(b)
 		power.unregister(b)
+		_storages.erase(b)
 	for c in b.cells:
 		occupancy[c] = 0
 		if b.def.blocks_path:
@@ -785,6 +810,11 @@ func _enemy_on_cells(cells: PackedInt32Array) -> bool:
 	return false
 
 
+## All towers (any state). Read-only for other systems.
+func towers() -> Array[Building]:
+	return _towers
+
+
 ## Items currently in the factory (belts, machine buffers, hands), by item index.
 func item_totals() -> PackedInt32Array:
 	var totals := PackedInt32Array()
@@ -801,6 +831,8 @@ func item_totals() -> PackedInt32Array:
 			totals[item] += b.inv_out[item]
 		if b.held >= 0:
 			totals[b.held] += 1
+	for d in supply.drones:
+		totals[d.item] += d.count
 	return totals
 
 

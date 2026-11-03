@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/building_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"splitter"
+kind = &"splitter"
+category = &"logistics"
+display_name = "Splitter"
+description = "Point a belt into it: items are sent out to the left, front and right in turn (skipping blocked sides). Use it to branch one belt into several."
+size = Vector2i(1, 1)
+blocks_path = false
+cost = 15
+material_cost = {}
+build_time = 0.5
+color = Color(0.55, 0.75, 0.9, 1)
+toolbar_slot = 4
+directional = true

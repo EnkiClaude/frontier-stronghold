@@ -177,6 +177,27 @@ func _draw_fallback(b: Building, r: Rect2) -> void:
 		&"inserter":
 			draw_rect(r.grow(-0.22), col.darkened(0.3))
 			return
+		&"tunnel":
+			# Belt half + dark tunnel mouth on the underground side.
+			var d := Vector2(BeltNetwork.DIRS[b.rotation % 4])
+			draw_rect(r, Color(0.32, 0.32, 0.34, col.a))
+			var mouth_side := d if b.variant == 0 else -d
+			var c := r.get_center() + mouth_side * 0.25
+			var side := Vector2(-mouth_side.y, mouth_side.x)
+			draw_colored_polygon(PackedVector2Array([c - side * 0.45 - mouth_side * 0.2, c + side * 0.45 - mouth_side * 0.2,
+				c + side * 0.45 + mouth_side * 0.25, c - side * 0.45 + mouth_side * 0.25]), Color(0.05, 0.06, 0.08, col.a))
+			draw_direction(r, b.rotation, Color(0.9, 0.75, 0.3, col.a), 0.06)
+			return
+		&"splitter":
+			draw_rect(r.grow(-0.04), col.darkened(0.45))
+			var d := Vector2(BeltNetwork.DIRS[b.rotation % 4])
+			var c := r.get_center()
+			for off in [Vector2(d.y, -d.x), d, Vector2(-d.y, d.x)]:
+				draw_line(c, c + off * 0.38, Color(col, col.a), 0.08)
+				BuildingRenderer.io_arrow(self, c + off * 0.36, off, Color(col.lightened(0.3), col.a))
+			if b.held >= 0:
+				_draw_item(Rect2(c - Vector2(0.15, 0.15), Vector2(0.3, 0.3)), b.held)
+			return
 	var inset := 0.04 if b.def.blocks_path else 0.0
 	draw_rect(r.grow(-inset), col)
 	draw_rect(r.grow(-inset), OUTLINE, false, 0.06)

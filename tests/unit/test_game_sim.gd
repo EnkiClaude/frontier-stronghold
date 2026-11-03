@@ -211,12 +211,42 @@ func test_excavation_opens_rock() -> void:
 	assert_eq(sim.excavate(Vector2i(26, 5)), GameSim.ERR_NOT_DIGGABLE, "ground is not diggable")
 
 
+func _spawned(sim: GameSim) -> int:
+	return sim.enemies._next_uid - 1
+
+
 func test_spawning_starts_after_grace_period() -> void:
 	var sim := SimHelpers.open_sim()
 	SimHelpers.run(sim, sim.reg.spawning.grace_period - 1.0)
 	assert_eq(sim.enemies.count, 0)
-	SimHelpers.run(sim, 2.0)
-	assert_eq(sim.enemies.count, 2, "one per nest")
+	SimHelpers.run(sim, 3.0)
+	assert_eq(_spawned(sim), 2 * sim.reg.spawning.wave_base_size, "first small wave: 3 per nest")
+
+
+func test_small_waves_leave_gaps() -> void:
+	var sim := SimHelpers.open_sim()
+	sim.skip_preparation()
+	SimHelpers.run(sim, 3.0)
+	var first := _spawned(sim)
+	SimHelpers.run(sim, 12.0)
+	assert_eq(_spawned(sim), first, "quiet between small waves")
+	SimHelpers.run(sim, 7.0)
+	assert_true(_spawned(sim) > first, "next wave after 20 s")
+
+
+func test_lull_after_assault() -> void:
+	var sim := SimHelpers.open_sim()
+	sim.core_hp = 1000000  # Undefended test map: keep the game running.
+	sim.skip_preparation()
+	var cfg := sim.reg.spawning
+	while sim.spawner.assault_number() == 0 or sim.spawner.is_assault_active():
+		sim.tick()
+	assert_true(sim.spawner.in_lull(sim.time))
+	var after := _spawned(sim)
+	SimHelpers.run(sim, cfg.lull_after_assault - 0.5)
+	assert_eq(_spawned(sim), after, "no spawns during the lull")
+	SimHelpers.run(sim, 3.0)
+	assert_true(_spawned(sim) > after, "waves resume after the lull")
 
 
 func test_game_over_when_core_destroyed() -> void:

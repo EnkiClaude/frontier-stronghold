@@ -288,9 +288,59 @@ func _effective_rotation() -> int:
 	return rotation_steps
 
 
+## Belt drag plan: [[cell, def_id, variant], ...]. Where the line crosses
+## other belts or buildings (up to the tunnel gap), a tunnel entrance/exit
+## pair carries it underneath instead of re-orienting what's there (ADR-008).
+## Obstacle tiles are left out of the plan.
+func _belt_plan(origins: Array[Vector2i], rot: int) -> Array:
+	var plan: Array = []
+	var n := origins.size()
+	var i := 0
+	while i < n:
+		var c := origins[i]
+		if i > 0 and i < n - 1 and _is_belt_obstacle(c, rot):
+			var j := i
+			while j < n - 1 and _is_belt_obstacle(origins[j], rot):
+				j += 1
+			var gap := j - i
+			if gap <= BeltNetwork.TUNNEL_MAX_GAP and not plan.is_empty() and plan[-1][2] == 0 and plan[-1][1] == &"conveyor_belt":
+				plan[-1] = [plan[-1][0], &"belt_tunnel", 0]
+				plan.append([origins[j], &"belt_tunnel", 1])
+				i = j + 1
+				continue
+		plan.append([c, &"conveyor_belt", 0])
+		i += 1
+	return plan
+
+
+## A tile a dragged belt line should tunnel under: anything that isn't empty
+## or a belt on the same axis.
+func _is_belt_obstacle(c: Vector2i, rot: int) -> bool:
+	var b := sim.building_at(c)
+	if b == null:
+		return false
+	if b.def.kind == &"belt" or b.def.kind == &"tunnel":
+		return b.rotation % 2 != rot % 2
+	return true
+
+
 func _commit_drag() -> void:
 	var rot := _effective_rotation()
 	var origins := _line_origins()  # Must be computed while still dragging.
+	if mode == Mode.BUILD and build_def.kind == &"belt" and origins.size() > 2:
+		_dragging = false
+		var placed_belts := 0
+		var belt_err := ""
+		for step in _belt_plan(origins, rot):
+			var e := sim.place(step[1], step[0], rot, step[2])
+			if e == "":
+				placed_belts += 1
+			elif belt_err == "":
+				belt_err = e
+		if belt_err != "":
+			message.emit(belt_err if placed_belts == 0 else "%s (%d placed)" % [belt_err, placed_belts])
+		_ghost_key = ""
+		return
 	_dragging = false
 	var placed := 0
 	var first_err := ""
@@ -369,6 +419,12 @@ func _update_ghosts() -> void:
 	_power_warning = false
 	_ghost_reason = ""
 	var single := origins.size() == 1
+	if mode == Mode.BUILD and build_def.kind == &"belt" and origins.size() > 2:
+		for step in _belt_plan(origins, _effective_rotation()):
+			var ok: bool = sim.check_place(step[1], step[0], _effective_rotation(), null, true) == "" \
+				or (step[1] == &"belt_tunnel" and sim.building_at(step[0]) != null and sim.building_at(step[0]).def.kind == &"belt")
+			_ghosts.append([step[0], Vector2i.ONE, ok, _effective_rotation(), step[1] == &"belt_tunnel"])
+		return
 	for o in origins:
 		var err := ""
 		match mode:
@@ -406,11 +462,15 @@ func ghost_reason() -> String:
 
 # --- Routes ------------------------------------------------------------------
 
+## The displayed route counts walls that are placed but still under
+## construction (plan_passable), so it updates immediately, even while paused.
+## Recomputed only when structures or the live field change (one BFS).
 func _update_routes() -> void:
-	if _routes_version == sim.path.version:
+	var key := sim.path.version * 1000003 + sim.structures_version
+	if _routes_version == key:
 		return
-	_routes_version = sim.path.version
-	_routes = _trace_routes(sim.path.dist)
+	_routes_version = key
+	_routes = _trace_routes(sim.path.preview_field(PackedInt32Array()))
 
 
 func _update_whatif(delta: float) -> void:
@@ -421,7 +481,7 @@ func _update_whatif(delta: float) -> void:
 		_whatif_key = ""
 		_rest = 0.0
 		return
-	var key := "%s|%d|%d" % [_ghosts[0][0], sim.path.version, sim.structures_version]
+	var key := "%s|%d|%d|%d" % [_ghosts[0][0], sim.path.version, sim.structures_version, rotation_steps]
 	if key != _whatif_key:
 		_whatif_key = key
 		_whatif.clear()
@@ -454,6 +514,9 @@ func _draw() -> void:
 		var rect := Rect2(g[0], g[1])
 		var ok: bool = g[2]
 		draw_rect(rect, OK_COLOR if ok else BAD_COLOR)
+		if g.size() > 4 and g[4]:
+			# Tunnel end: dark mouth marker.
+			draw_rect(rect.grow(-0.25), Color(0.05, 0.08, 0.12, 0.85))
 		draw_rect(rect, Color(OK_COLOR if ok else BAD_COLOR, 0.9), false, 0.06)
 		var dir_def: BuildingDef = build_def if mode == Mode.BUILD else (selected.def if mode == Mode.MOVE and selected != null else null)
 		if dir_def != null and dir_def.directional:

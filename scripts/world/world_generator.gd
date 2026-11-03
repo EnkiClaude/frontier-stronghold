@@ -40,8 +40,10 @@ static func fill_columns(grid: WorldGrid, cfg: WorldGenConfig, reg: DataRegistry
 	var nest_start := nest_x - cfg.nest_clear_cols / 2
 	var nest_end := nest_x + cfg.nest_clear_cols / 2
 	var terrain := grid.terrain
+	var span := maxf(1.0, float(cfg.width - cfg.core_clear_cols))
 	for x in range(x_from, x_to):
 		var in_clear := x < cfg.core_clear_cols or (x >= nest_start and x < nest_end)
+		var density := cfg.ore_density_gain * clampf((x - cfg.core_clear_cols) / span, 0.0, 1.0)
 		for y in h:
 			var code := c_ground
 			if y == 0 or y == h - 1:
@@ -53,7 +55,7 @@ static func fill_columns(grid: WorldGrid, cfg: WorldGenConfig, reg: DataRegistry
 					code = c_water
 			if code == c_ground and x >= cfg.core_clear_cols:
 				for o in ore_noises.size():
-					if ore_noises[o].get_noise_2d(x, y) > ore_thresholds[o]:
+					if ore_noises[o].get_noise_2d(x, y) > ore_thresholds[o] - density:
 						code = ore_codes[o]
 						break
 			terrain[x * h + y] = code
@@ -96,12 +98,28 @@ static func west_edge_cells(grid: WorldGrid) -> PackedInt32Array:
 
 static func _place_starter_patches(grid: WorldGrid, cfg: WorldGenConfig, reg: DataRegistry, rng: SimRng) -> void:
 	var c_ground := reg.terrain_code(&"ground")
-	var spawns := cfg.ore_spawns.filter(func(s: OreSpawn) -> bool: return s.starter_patch_radius > 0)
+	var spawns: Array = []
+	for s: OreSpawn in cfg.ore_spawns:
+		if s.starter_patch_radius > 0:
+			for k in maxi(1, s.starter_patches):
+				spawns.append(s)
 	if spawns.is_empty():
 		return
-	# Spread patches evenly north-south through the middle of the Core zone.
-	var band_top := grid.height * 0.25
-	var band := grid.height * 0.5
+	# Interleave types (iron, copper, coal, stone, iron, ...) north to south.
+	var ordered: Array = []
+	var by_type: Array = []
+	for s: OreSpawn in cfg.ore_spawns:
+		if s.starter_patch_radius > 0:
+			by_type.append([s, maxi(1, s.starter_patches)])
+	while ordered.size() < spawns.size():
+		for entry in by_type:
+			if entry[1] > 0:
+				ordered.append(entry[0])
+				entry[1] -= 1
+	spawns = ordered
+	# Spread patches evenly north-south through the Core zone.
+	var band_top := grid.height * 0.1
+	var band := grid.height * 0.8
 	for i in spawns.size():
 		var spawn: OreSpawn = spawns[i]
 		var r := spawn.starter_patch_radius

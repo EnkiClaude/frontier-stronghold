@@ -26,7 +26,7 @@ func test_maze_lengthens_route_and_defends_core() -> void:
 	# Enemies need ~3 minutes to cross the map; play 7 minutes incl. 3 assaults.
 	MazeScenario.run(sim, 420.0)
 	assert_false(sim.game_over, "core must survive 7 minutes behind the maze")
-	assert_true(sim.kills > 100, "kills: %d" % sim.kills)
+	assert_true(sim.kills > 50, "kills: %d" % sim.kills)
 	assert_true(sim.kills > sim.leaked * 10, "kills %d vs leaked %d" % [sim.kills, sim.leaked])
 
 

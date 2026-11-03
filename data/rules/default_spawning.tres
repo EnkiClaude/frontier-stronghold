@@ -5,9 +5,10 @@
 [resource]
 script = ExtResource("1_spawn")
 grace_period = 165.0
-trickle_interval_start = 4.0
-trickle_interval_min = 1.2
-trickle_ramp_seconds = 600.0
+wave_interval = 20.0
+wave_base_size = 3
+wave_growth_per_minute = 0.6
+lull_after_assault = 20.0
 assault_first_at = 75.0
 assault_interval = 120.0
 assault_base_size = 10

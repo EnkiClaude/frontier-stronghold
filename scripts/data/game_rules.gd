@@ -20,6 +20,15 @@ extends Resource
 @export var infinite_ammo: bool = false
 ## Items in the Core at the start (item id -> count).
 @export var start_items: Dictionary = {}
+@export_group("Supply drones")
+## Max distance (tiles) from a Core/Storage to a tower it can resupply.
+@export var supply_range: float = 45.0
+## Drone speed in tiles per second.
+@export var drone_speed: float = 10.0
+## Items per drone trip.
+@export var supply_max_items: int = 5
+## Seconds between resupply checks.
+@export var supply_interval: float = 0.5
 @export_group("Excavation")
 @export var excavate_cost: int = 15
 @export var excavate_time: float = 2.0

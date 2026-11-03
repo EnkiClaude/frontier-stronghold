@@ -79,3 +79,32 @@ func test_nests_are_less_than_half_way() -> void:
 		assert_true(absi(at.x + 1 - g.nest_column) <= 1)
 	for s in sim.path.spawn_cells:
 		assert_true(sim.path.dist[s] > 0, "nests reach the core")
+
+
+func test_more_starter_ore_and_denser_far_ore() -> void:
+	var r := _gen(5)
+	var g: WorldGrid = r[0]
+	var reg: DataRegistry = r[1]
+	var cfg: WorldGenConfig = r[2]
+	var ore_codes := PackedInt32Array()
+	for s in cfg.ore_spawns:
+		ore_codes.append(reg.terrain_code(s.terrain_id))
+	var starter := 0
+	for x in cfg.core_clear_cols:
+		for y in g.height:
+			if ore_codes.has(g.get_terrain(x, y)):
+				starter += 1
+	assert_true(starter >= 500, "starter zone ore tiles: %d" % starter)
+	# Natural ore: compare the band just outside the base with the far east.
+	var near := 0
+	var far := 0
+	var w := 60
+	for x in range(cfg.core_clear_cols, cfg.core_clear_cols + w):
+		for y in g.height:
+			if ore_codes.has(g.get_terrain(x, y)):
+				near += 1
+	for x in range(g.width - w, g.width):
+		for y in g.height:
+			if ore_codes.has(g.get_terrain(x, y)):
+				far += 1
+	assert_true(far > near * 1.5, "ore near %d vs far %d" % [near, far])

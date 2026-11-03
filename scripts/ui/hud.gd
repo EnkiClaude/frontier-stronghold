@@ -77,8 +77,16 @@ func _process(delta: float) -> void:
 	if sim == null:
 		return
 	_sample_production()
-	var assault := "ASSAULT #%d!" % sim.spawner.assault_number() if sim.spawner.is_assault_active() \
-		else "Next assault: %ds" % ceili(sim.seconds_to_assault())
+	var sp := sim.spawner
+	var assault: String
+	if sp.is_assault_active():
+		assault = "ASSAULT #%d!" % sp.assault_number()
+	elif sp.in_lull(sim.time):
+		assault = "Lull — rebuild! %ds" % ceili(sp.lull_until - sim.time)
+	elif sp.is_wave_active():
+		assault = "Wave %d   ·   Assault in %ds" % [sp.wave_number(), ceili(sim.seconds_to_assault())]
+	else:
+		assault = "Next wave %ds   ·   Assault in %ds" % [ceili(maxf(0.0, sp.next_wave_at - sim.time)), ceili(sim.seconds_to_assault())]
 	var prep := sim.in_preparation()
 	if prep:
 		assault = "Enemies arrive in %s" % _clock_text(sim.spawner.waves_start - sim.time + 0.99)
@@ -155,6 +163,7 @@ func _resources_text() -> String:
 		lines.append("")
 		lines.append("[color=#73f2ff][b]TOWER AMMO[/b][/color]")
 		lines.append("Loaded: [b]%d[/b] / %d rounds" % [ammo[0], ammo[1]])
+		lines.append("Supply drones in flight: %d" % sim.supply.drones.size())
 		if ammo[2] > 0:
 			lines.append("[color=#ff5a4a]EMPTY towers: %d[/color]" % ammo[2])
 		if ammo[3] > 0:
@@ -293,7 +302,8 @@ func _building_text(b: Building) -> String:
 	if b.def.tower != null:
 		var t := b.def.tower
 		if not sim.infinite_ammo and t.ammo_item != &"":
-			lines.append("Loaded: %d / %d rounds%s" % [b.ammo, t.magazine_size, "   — EMPTY! Feed it ammo." if b.ammo <= 0 else ""])
+			lines.append("Loaded: %d / %d rounds%s" % [b.ammo, t.magazine_size, "   — EMPTY!" if b.ammo <= 0 else ""])
+			lines.append(_supply_text(b))
 		if t.power_draw > 0.0:
 			if b.network < 0:
 				lines.append("[!] Not connected to power — place a Power Node within 4.5 tiles.")
@@ -332,6 +342,21 @@ func _building_text(b: Building) -> String:
 	if b.def.sellable:
 		lines.append("Value: %d credits" % b.invested)
 	return "\n".join(lines)
+
+
+## Where this tower's ammo comes from (supply drones, ADR-008).
+func _supply_text(b: Building) -> String:
+	var t := b.def.tower
+	var item := sim.reg.item_index(t.ammo_item)
+	var name := sim.reg.items[item].display_name
+	if sim.supply.is_in_flight(b.id):
+		return "Supply: drone on the way"
+	var src := sim.supply.nearest_source(sim, b, item)
+	if src != null:
+		return "Supply: drones from %s (%.0f tiles)" % [src.def.display_name, src.center().distance_to(b.center())]
+	if sim.supply.distance_to_stockpile(sim, b) > sim.rules.supply_range:
+		return "[!] Out of drone range (%.0f tiles) — build a Storage nearby and stock it with %s" % [sim.rules.supply_range, name]
+	return "[!] No %s in stock — produce some and deliver it to the Core or a Storage" % name
 
 
 func _targeting_text(mode: StringName) -> String:
