@@ -1,6 +1,6 @@
 # ADR-006: Draw enemies and belt items with culled canvas calls, not MultiMesh
 
-- **Status:** Accepted (supersedes the MultiMesh part of ADR-001)
+- **Status:** Accepted, verified on macOS 2026-11-03 (supersedes the MultiMesh part of ADR-001)
 - **Date:** 2026-11-02
 
 ## Context

@@ -320,3 +320,7 @@ on the player's machine: canvas draw calls culled to the view (ADR-006).
   `BuildingRenderer.draw_io(..., only_active)` fades markers over 1.5 s.
 
 Tests: 106 pass (new: pipette, locked swipe-sell, transfer timestamps).
+
+### 2026-11-03 — v0.2.4 confirmed on macOS
+The player confirmed that enemies and belt items are now visible on their Mac.
+ADR-006 (culled canvas drawing instead of MultiMesh) is verified on the target platform.
