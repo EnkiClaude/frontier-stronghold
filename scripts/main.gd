@@ -92,7 +92,9 @@ func _ready() -> void:
 	camera = CameraController.new()
 	camera.name = "Camera"
 	camera.world_rect = Rect2(Vector2.ZERO, world_size)
-	camera.position = sim.core.center() * WorldGrid.TILE_PX + Vector2(14, 0) * WorldGrid.TILE_PX
+	# Desktop: Core near the left of the view. Phones: Core in the centre.
+	var offset := Vector2.ZERO if GameSettings.touch_ui() else Vector2(14, 0)
+	camera.position = (sim.core.center() + offset) * WorldGrid.TILE_PX
 	camera.zoom = Vector2(0.75, 0.75)
 	add_child(camera)
 	camera.make_current()

@@ -19,6 +19,9 @@ extends Camera2D
 var world_rect := Rect2()
 ## Extra space allowed beyond the world edge, in world units.
 @export var edge_margin: float = 64.0
+## Fraction of half the view width that may extend past the left/right map
+## edge (1.0 = the edge can reach the screen centre).
+@export var overscroll_x: float = 1.0
 
 ## Player option multipliers (set from Settings by Main).
 var pan_mult: float = 1.0
@@ -174,8 +177,11 @@ func clamp_to_world() -> void:
 		return
 	if zoom.x < min_zoom():
 		zoom = Vector2.ONE * min_zoom()
-	var area := world_rect.grow(edge_margin)
 	var half := _view_size() * 0.5 / zoom.x
+	# Horizontally the view may go far past the map ends, so the Core (near the
+	# west edge) and the nests can be centred on any screen.
+	var mx := maxf(edge_margin, half.x * overscroll_x)
+	var area := world_rect.grow_individual(mx, edge_margin, mx, edge_margin)
 	var lo := area.position + half
 	var hi := area.end - half
 	position.x = area.get_center().x if lo.x > hi.x else clampf(position.x, lo.x, hi.x)

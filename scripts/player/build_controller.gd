@@ -219,13 +219,17 @@ func start_move_selected() -> void:
 
 ## When set, replaces the real mouse position (tile units); used by tests.
 var mouse_override: Variant = null
+## Last pointer position in viewport pixels, from input events.
+var _pointer_screen := Vector2.ZERO
+var _have_pointer := false
+## Phones: a finger is on the screen (ghosts only show while it is).
+var _finger_down := false
 
 
 func _process(delta: float) -> void:
 	if sim == null:
 		return
-	_mouse = mouse_override if mouse_override != null else get_local_mouse_position()
-	_hover = Vector2i(floori(_mouse.x), floori(_mouse.y))
+	_refresh_pointer()  # The camera may have moved under a still pointer.
 	if selected != null and not sim.buildings.has(selected.id):
 		_set_selected(null)
 	if mode == Mode.SELECT and _dragging:
@@ -280,6 +284,29 @@ func _unhandled_input(event: InputEvent) -> void:
 			if event.is_action_pressed("tool_%d" % def.toolbar_slot):
 				select_build(def)
 				break
+
+
+## Takes the pointer position from the event itself. A finger tap has no
+## hover motion before it, so the last known position (often the toolbar
+## button just tapped) would otherwise be used as the drag start.
+## Runs in _input (before the HUD) so every pointer event is seen.
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouse or event is InputEventScreenTouch or event is InputEventScreenDrag:
+		_pointer_screen = event.position
+		_have_pointer = true
+		if event is InputEventScreenTouch:
+			_finger_down = (event as InputEventScreenTouch).pressed
+		_refresh_pointer()
+
+
+func _refresh_pointer() -> void:
+	if mouse_override != null:
+		_mouse = mouse_override
+	elif _have_pointer:
+		_mouse = get_global_transform_with_canvas().affine_inverse() * _pointer_screen
+	else:
+		_mouse = get_local_mouse_position()
+	_hover = Vector2i(floori(_mouse.x), floori(_mouse.y))
 
 
 func _on_primary_pressed() -> void:
@@ -428,6 +455,17 @@ func power_warning() -> bool:
 
 
 func _update_ghosts() -> void:
+	if not _finger_down and _have_pointer and GameSettings.touch_ui() and mode != Mode.SELECT:
+		# The last tap position isn't a cursor: don't leave a stale ghost
+		# ("Space is occupied" right after placing) on screen.
+		_ghosts.clear()
+		_ghost_key = ""
+		_ghost_reason = ""
+		_power_warning = false
+		return
+	if mode == Mode.SELL or mode == Mode.SELECT:
+		_ghost_reason = ""
+		_power_warning = false
 	if mode == Mode.SELL:
 		_ghosts.clear()
 		_ghost_key = ""

@@ -5,6 +5,23 @@ goes up for each development phase and PATCH for fixes and playtest feedback.
 The version is set in `project.godot` (`application/config/version`), and it
 appears in the window title, the HUD and every exported file name.
 
+## v0.3.3 — 2026-11-03 (phone playtest fixes)
+- **Fixed: towers and buildings couldn't be placed on phones.** The input bindings only matched
+  device 0 (a real mouse), but taps on iOS arrive as emulated mouse clicks from device −1. All
+  bindings now match any device. Tap positions are also taken from the touch itself, not the last
+  hover position.
+- **Camera can go past the map ends,** so the Core (near the west edge) can sit in the middle of
+  the screen. On phones the game starts centred on the Core.
+- **Simpler phone HUD:**
+  - Slim top bar: Menu, credits, Core health, wave status, Start now, Res, Map, Pause, speed.
+  - One toolbar row at the bottom: a category button that cycles the tabs, compact building
+    buttons (name and credits), and Core.
+  - Resources panel and minimap are hidden until you tap Res or Map.
+  - Sell is always shown; Cancel and Rotate appear only when they apply.
+  - While building, the cost shows in a single hint line instead of the info panel.
+  - The build preview only shows while your finger is down, so no stale "Space is occupied" after placing.
+- Desktop layout is unchanged.
+
 ## v0.3.2 — 2026-11-03 (mobile / web build)
 - **Playable in a phone browser** (iPhone Safari, Android Chrome): a single-threaded Web export
   published to GitHub Pages. Add it to your Home Screen for full screen.

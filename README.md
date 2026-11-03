@@ -24,9 +24,11 @@ Next: a human playtest, then Phase 2 (economy).
 
 Open it in Safari or Chrome, turn the phone sideways, and optionally use
 *Share → Add to Home Screen* for full screen. Touch controls:
-- tap to place or select; drag to draw lines;
-- one finger pans when no tool is selected; pinch to zoom;
-- the left-hand buttons do Cancel, Rotate, Sell, Pause and Speed.
+- tap a building in the bottom bar, then tap the map to place it; drag to draw lines of walls or belts;
+- the category button at the bottom left (e.g. "Defense >") switches between Defense, Logistics, Production and Power;
+- one finger pans when no tool is selected; pinch to zoom; **Core** jumps back to your base;
+- **Sell**, **Cancel** and **Rotate** appear above the bar when they apply;
+- top bar: **Menu**, **Res** (resources), **Map** (minimap), **Pause** and speed.
 
 ## Running the game
 

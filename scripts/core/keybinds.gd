@@ -88,13 +88,21 @@ static func _apply_keys(action: String, physical_keycodes: Array) -> void:
 		InputMap.action_add_event(action, _key(int(code)))
 
 
+## InputMap device id meaning "any device".
+const ALL_DEVICES := -1
+
+
 static func _key(code: int) -> InputEventKey:
 	var ev := InputEventKey.new()
 	ev.physical_keycode = code as Key
+	ev.device = ALL_DEVICES
 	return ev
 
 
 static func _mouse(button: MouseButton) -> InputEventMouseButton:
 	var ev := InputEventMouseButton.new()
 	ev.button_index = button
+	# Match any device: taps on phones arrive as emulated mouse clicks from
+	# device -1, which a device-0 binding (the default) never matches.
+	ev.device = ALL_DEVICES
 	return ev

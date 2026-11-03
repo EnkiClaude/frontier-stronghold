@@ -126,3 +126,13 @@ func test_one_finger_pan_only_without_tool() -> void:
 	_drag(cam, 0, Vector2(600, 450), Vector2(-100, 0))
 	assert_true(cam.position.x > start.x, "no tool: one finger pans")
 	cam.queue_free()
+
+
+func test_view_can_centre_on_the_map_ends() -> void:
+	# Phones: the Core sits near the west edge; the player must be able to centre it.
+	var cam := _camera()
+	cam.center_on(Vector2(4 * 32, 2500))
+	assert_true(absf(cam.position.x - 4 * 32) < 1.0, "x %f" % cam.position.x)
+	cam.center_on(Vector2(255 * 32, 2500))
+	assert_true(absf(cam.position.x - 255 * 32) < 1.0, "x %f" % cam.position.x)
+	cam.queue_free()

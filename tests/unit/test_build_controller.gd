@@ -121,3 +121,19 @@ func test_second_finger_aborts_build_drag() -> void:
 		c._commit_drag()
 	assert_eq(sim.building_at(Vector2i(20, 4)), null, "pinching must not place walls")
 	c.free()
+
+
+func test_tap_emulated_mouse_matches_primary() -> void:
+	# iOS taps arrive as mouse clicks from the emulation device (-1); every
+	# default binding must match any device (v0.3.2 couldn't build on phones).
+	var kb: GDScript = load("res://scripts/core/keybinds.gd")
+	var defaults: Dictionary = kb.default_bindings()
+	for action: String in defaults:
+		for ev: InputEvent in defaults[action]:
+			assert_eq(ev.device, -1, "%s binding must match any device" % action)
+	var tap := InputEventMouseButton.new()
+	tap.button_index = MOUSE_BUTTON_LEFT
+	tap.pressed = true
+	tap.device = InputEvent.DEVICE_ID_EMULATION
+	var binding: InputEvent = defaults["primary"][0]
+	assert_true(binding.is_match(tap), "emulated tap must match the primary binding")

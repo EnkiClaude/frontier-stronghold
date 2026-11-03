@@ -35,15 +35,20 @@ var _info_buttons: HBoxContainer
 var _sell_btn: Button
 var _move_btn: Button
 var _recipe_btn: Button
-var _toolbar: HFlowContainer
+var _toolbar: Container
 var _tabs_row: HBoxContainer
 var _shown_category: StringName = &""
 var _touch := false
-var _res_body_visible := true
 var _portrait_note: Label
 var _sell_mode_btn: Button
 var _pause_btn: Button
 var _speed_btn: Button
+## Touch layout extras.
+var _cat_btn: Button
+var _res_panel: Control
+var _minimap_box: Control
+var _rotate_btn: Button
+var _cancel_btn: Button
 var _tool_buttons: Dictionary = {}  # BuildingDef or &"excavate" -> Button
 var _toast: Label
 var _toast_time := 0.0
@@ -101,21 +106,32 @@ func _process(delta: float) -> void:
 		assault = "Enemies arrive in %s" % _clock_text(sim.spawner.waves_start - sim.time + 0.99)
 	_skip_btn.visible = prep and not sim.game_over
 	var speed := "PAUSED" if clock.paused else "%dx" % int(clock.speed)
-	_status.text = "Credits %d    Core %d/%d    Enemies %d    Kills %d    %s    %s    [%s]    v%s" % [
-		sim.credits, sim.core_hp, sim.rules.core_hp, sim.enemies.count, sim.kills, assault, _clock_text(sim.time), speed,
-		ProjectSettings.get_setting("application/config/version", "dev")]
+	if _touch:
+		_process_touch(prep)
+	else:
+		_status.text = "Credits %d    Core %d/%d    Enemies %d    Kills %d    %s    %s    [%s]    v%s" % [
+			sim.credits, sim.core_hp, sim.rules.core_hp, sim.enemies.count, sim.kills, assault, _clock_text(sim.time), speed,
+			ProjectSettings.get_setting("application/config/version", "dev")]
 	if _toast_time > 0.0:
 		_toast_time -= delta
 		_toast.modulate.a = clampf(_toast_time / 0.5, 0.0, 1.0)
 	var reason := controller.ghost_reason()
 	if reason == "" and controller.power_warning():
 		reason = "No Power Node in range — this tower needs power (Power tab)."
-	_hint.visible = reason != "" or not GameSettings.touch_ui()
+	var note := ""  # Neutral (not an error) hint text.
 	if controller.mode == BuildController.Mode.SELL:
-		reason = "SELL MODE: tap or swipe over buildings to sell them (tap Sell again to stop)"
-		_hint.visible = true
-	_hint.text = reason if reason != "" else "LMB build/select · drag for lines · RMB cancel/sell · R rotate · X excavate · M move · Space pause · +/- speed · scroll/pinch zoom"
-	_hint.modulate = Color(1, 0.55, 0.5) if reason != "" else Color(1, 1, 1, 0.75)
+		reason = "Sell mode: tap or swipe buildings" if _touch else "SELL MODE: tap or swipe over buildings to sell them (tap Sell again to stop)"
+	elif _touch and reason == "" and controller.mode == BuildController.Mode.BUILD and controller.build_def != null:
+		note = "%s: %s%s" % [controller.build_def.display_name, _cost_text(controller.build_def),
+			" · drag for a line" if controller.build_def.size == Vector2i.ONE else ""]
+	elif _touch and reason == "" and controller.mode == BuildController.Mode.EXCAVATE:
+		note = "Excavate: tap rock to remove it (%d cr, +%d Stone)" % [sim.rules.excavate_cost, sim.rules.excavate_stone]
+	_hint.visible = reason != "" or note != "" or not _touch
+	if note != "":
+		_hint.text = note
+		_hint.modulate = Color(1, 1, 1, 0.9)
+	else:
+		_set_hint(reason)
 	_refresh -= delta
 	if _refresh <= 0.0:
 		_refresh = 0.2
@@ -124,6 +140,36 @@ func _process(delta: float) -> void:
 	if sim.game_over and not _game_over.visible:
 		_game_over_label.text = "THE CORE HAS FALLEN\n\nSurvived %s · %d kills · %d assaults" % [_clock_text(sim.time), sim.kills, sim.spawner.assault_number()]
 		_game_over.visible = true
+
+
+func _set_hint(reason: String) -> void:
+	_hint.text = reason if reason != "" else "LMB build/select · drag for lines · RMB cancel/sell · R rotate · X excavate · M move · Space pause · +/- speed · scroll/pinch zoom"
+	_hint.modulate = Color(1, 0.55, 0.5) if reason != "" else Color(1, 1, 1, 0.75)
+
+
+## Phone status line and context buttons.
+func _process_touch(prep: bool) -> void:
+	var sp := sim.spawner
+	var state: String
+	if prep:
+		state = "Enemies in %s" % _clock_text(sp.waves_start - sim.time + 0.99)
+	elif sp.is_assault_active():
+		state = "ASSAULT #%d!" % sp.assault_number()
+	elif sp.in_lull(sim.time):
+		state = "Lull %ds" % ceili(sp.lull_until - sim.time)
+	else:
+		state = "Wave %d · Assault %ds" % [sp.wave_number(), ceili(sim.seconds_to_assault())]
+	_status.text = "%d cr   Core %d/%d   %s" % [sim.credits, sim.core_hp, sim.rules.core_hp, state]
+	var ammo := sim.ammo_summary()
+	if ammo[2] > 0:
+		_status.text += "   %d empty!" % ammo[2]
+	_pause_btn.text = "Play" if clock.paused else "Pause"
+	_speed_btn.text = "%dx" % int(clock.speed)
+	var m := controller.mode
+	_rotate_btn.visible = (m == BuildController.Mode.BUILD and controller.build_def != null and controller.build_def.directional) \
+		or m == BuildController.Mode.MOVE
+	_cancel_btn.visible = m != BuildController.Mode.SELECT or controller.selected != null
+	_sell_mode_btn.modulate = Color(1.0, 0.45, 0.4) if m == BuildController.Mode.SELL else Color.WHITE
 
 
 # --- Resources ---------------------------------------------------------------
@@ -140,10 +186,7 @@ func _sample_production() -> void:
 
 func _resources_text() -> String:
 	var lines := PackedStringArray()
-	if not _res_body_visible:
-		var ammo_s := sim.ammo_summary()
-		return "[color=#73f2ff][b]RESOURCES +[/b][/color]  %d cr%s" % [sim.credits, "   [color=#ff5a4a]%d empty[/color]" % ammo_s[2] if ammo_s[2] > 0 else ""]
-	lines.append("[color=#73f2ff][b]RESOURCES%s[/b][/color]" % (" -" if _touch else ""))
+	lines.append("[color=#73f2ff][b]RESOURCES[/b][/color]")
 	lines.append("Credits: [b]%d[/b]%s" % [sim.credits, "   [color=#9aa](+%d recycled)[/color]" % sim.factory.recycled_total if sim.factory.recycled_total > 0 else ""])
 	var totals := sim.item_totals()
 	var now := sim.factory.produced
@@ -213,15 +256,13 @@ func _refresh_info() -> void:
 		_info_panel.visible = true
 	elif tool_def != null:
 		_info_title.text = "Build: %s" % tool_def.display_name
-		if _touch:
-			# Phones: keep the map visible while building - just the cost.
-			_info_body.text = "Cost: %s" % _cost_text(tool_def)
-		else:
-			_info_body.text = _def_text(tool_def) + "\n\nCost: %s · %dx%d tiles%s" % [
-				_cost_text(tool_def), tool_def.size.x, tool_def.size.y, " · R to rotate" if tool_def.directional else ""]
+		_info_body.text = _def_text(tool_def) + "\n\nCost: %s · %dx%d tiles%s" % [
+			_cost_text(tool_def), tool_def.size.x, tool_def.size.y, " · R to rotate" if tool_def.directional else ""]
 		_info_buttons.visible = false
 		_recipe_btn.visible = false
-		_info_panel.visible = true
+		_info_panel.visible = not _touch  # Phones: the cost is in the hint line; keep the map clear.
+	elif controller.mode == BuildController.Mode.EXCAVATE and _touch:
+		_info_panel.visible = false  # Phones: described in the hint line.
 	elif controller.mode == BuildController.Mode.EXCAVATE:
 		_info_title.text = "Excavate"
 		_info_body.text = "Removes rock (purple crystal) to open new routes and adds %d Stone to the Core.\nCost %d credits · takes %.0f s." % [sim.rules.excavate_stone, sim.rules.excavate_cost, sim.rules.excavate_time]
@@ -412,41 +453,113 @@ func _inv_text(inv: Dictionary) -> String:
 
 # --- Layout ------------------------------------------------------------------
 
-## Big buttons for everything that needs right-click or a key on desktop.
-func _build_touch_bar(root: Control) -> void:
-	# Left column under the (collapsed) resources panel.
-	var col := VBoxContainer.new()
-	col.position = Vector2(10, 104)
-	col.add_theme_constant_override("separation", 4)
-	var pair := HBoxContainer.new()
-	pair.add_theme_constant_override("separation", 4)
-	var specs := [
-		["Cancel", func() -> void:
-			controller.cancel()
-			controller._set_selected(null)],
-		["Rotate", func() -> void: controller.rotation_steps = (controller.rotation_steps + 1) % 4],
-		["Sell", func() -> void: controller.select_sell_mode()],
-		["Pause", func() -> void: pause_toggled.emit()],
-		["Speed", func() -> void: speed_cycled.emit()],
-	]
-	for spec in specs:
-		var b := _button(spec[0])
-		b.custom_minimum_size = Vector2(76 if spec[0] in ["Pause", "Speed"] else 156, 42)
-		b.pressed.connect(spec[1])
-		if spec[0] in ["Pause", "Speed"]:
-			pair.add_child(b)
-		else:
-			col.add_child(b)
-		match spec[0]:
-			"Sell":
-				_sell_mode_btn = b
-			"Pause":
-				_pause_btn = b
-			"Speed":
-				_speed_btn = b
-	col.add_child(pair)
-	root.add_child(col)
-	root.move_child(col, 0)  # Resources panel (when expanded) draws on top.
+## Phone layout: one slim status bar on top, one toolbar row at the bottom,
+## and buttons only for what needs a right-click or key on desktop.
+func _build_touch_frame(root: Control) -> void:
+	# Top: [Menu] status ........ [Start now] [Res] [Map] [Pause] [1x]
+	var top := _panel(4)
+	top.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	var top_row := HBoxContainer.new()
+	top_row.add_theme_constant_override("separation", 6)
+	top_row.add_child(_small_button("Menu", toggle_menu, 58))
+	_status = _label(15)
+	_status.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_status.clip_text = true
+	top_row.add_child(_status)
+	_skip_btn = _small_button("Start now", func() -> void: sim.skip_preparation(), 84)
+	top_row.add_child(_skip_btn)
+	top_row.add_child(_small_button("Res", func() -> void: _res_panel.visible = not _res_panel.visible, 48))
+	top_row.add_child(_small_button("Map", func() -> void: _minimap_box.visible = not _minimap_box.visible, 48))
+	_pause_btn = _small_button("Pause", func() -> void: pause_toggled.emit(), 58)
+	top_row.add_child(_pause_btn)
+	_speed_btn = _small_button("1x", func() -> void: speed_cycled.emit(), 40)
+	top_row.add_child(_speed_btn)
+	top.add_child(top_row)
+	root.add_child(top)
+
+	# Resources: hidden until "Res" is tapped; tap the panel to close it.
+	var res := _panel()
+	res.position = Vector2(0, 44)
+	_resources = RichTextLabel.new()
+	_resources.bbcode_enabled = true
+	_resources.fit_content = true
+	_resources.scroll_active = false
+	_resources.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_resources.custom_minimum_size = Vector2(250, 0)
+	_resources.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_resources.add_theme_font_size_override("normal_font_size", 13)
+	_resources.add_theme_font_size_override("bold_font_size", 13)
+	res.add_child(_resources)
+	res.gui_input.connect(func(ev: InputEvent) -> void:
+		if ev is InputEventMouseButton and ev.pressed:
+			res.visible = false)
+	res.visible = false
+	_res_panel = res
+
+	# Bottom: hint line, then [category] [tools...] in a single scrolling row.
+	var bottom := VBoxContainer.new()
+	bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bottom.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	bottom.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	bottom.alignment = BoxContainer.ALIGNMENT_END
+	bottom.add_theme_constant_override("separation", 4)
+	# Context buttons (left, above the toolbar).
+	var ctx := HBoxContainer.new()
+	ctx.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ctx.add_theme_constant_override("separation", 6)
+	_cancel_btn = _small_button("Cancel", func() -> void:
+		controller.cancel()
+		controller._set_selected(null), 70)
+	_rotate_btn = _small_button("Rotate", func() -> void: controller.rotation_steps = (controller.rotation_steps + 1) % 4, 70)
+	_sell_mode_btn = _small_button("Sell", func() -> void: controller.select_sell_mode(), 56)
+	for b in [_sell_mode_btn, _rotate_btn, _cancel_btn]:
+		b.custom_minimum_size.y = 40
+		ctx.add_child(b)
+	_hint = _label(13)
+	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_hint.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	_hint.add_theme_color_override("font_outline_color", Color.BLACK)
+	_hint.add_theme_constant_override("outline_size", 5)
+	ctx.add_child(_hint)
+	bottom.add_child(ctx)
+	var bar := _panel(4)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	_cat_btn = _small_button("Defense", controller.next_category, 92)
+	_cat_btn.custom_minimum_size.y = 46
+	_cat_btn.add_theme_color_override("font_color", ACCENT)
+	_cat_btn.tooltip_text = "Tap to switch building category."
+	row.add_child(_cat_btn)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	var tools := HBoxContainer.new()
+	tools.add_theme_constant_override("separation", 4)
+	scroll.add_child(tools)
+	_toolbar = tools
+	row.add_child(scroll)
+	row.add_child(_small_button("Core", func() -> void: camera.center_on(sim.core.center() * WorldGrid.TILE_PX), 52))
+	bar.add_child(row)
+	bottom.add_child(bar)
+	root.add_child(bottom)
+	_tabs_row = HBoxContainer.new()  # Unused on phones (the category button cycles).
+	_rebuild_toolbar()
+
+	# Minimap: hidden until "Map" is tapped (top right, under the status bar).
+	_minimap_box = _panel(4)
+	_minimap_box.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_minimap_box.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_minimap_box.offset_top = 44
+	var minimap := Minimap.new()
+	minimap.setup(sim, camera, 260.0)
+	_minimap_box.add_child(minimap)
+	_minimap_box.visible = false
+	root.add_child(_minimap_box)
+	root.add_child(res)
+
 	_portrait_note = _label(22)
 	_portrait_note.text = "Rotate your phone to landscape"
 	_portrait_note.set_anchors_preset(Control.PRESET_CENTER)
@@ -457,15 +570,7 @@ func _build_touch_bar(root: Control) -> void:
 	root.add_child(_portrait_note)
 
 
-func _build() -> void:
-	_touch = GameSettings.touch_ui()
-	_root = Control.new()
-	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_root)
-	var root := _root
-	get_viewport().size_changed.connect(apply_ui_scale)
-	GameSettings.get_instance().changed.connect(apply_ui_scale)
-
+func _build_desktop_frame(root: Control) -> void:
 	# Top status bar (+ "start waves" button during preparation).
 	var top := _panel()
 	top.set_anchors_preset(Control.PRESET_TOP_WIDE)
@@ -494,57 +599,10 @@ func _build() -> void:
 	_resources.autowrap_mode = TextServer.AUTOWRAP_OFF
 	_resources.custom_minimum_size = Vector2(250, 0)
 	_resources.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if _touch:
-		_res_body_visible = false
-		res.gui_input.connect(func(ev: InputEvent) -> void:
-			if ev is InputEventMouseButton and ev.pressed:
-				_res_body_visible = not _res_body_visible
-				_resources.text = _resources_text())
 	_resources.add_theme_font_size_override("normal_font_size", 15)
 	_resources.add_theme_font_size_override("bold_font_size", 15)
 	res.add_child(_resources)
 	root.add_child(res)
-
-	# Right: info panel.
-	_info_panel = _panel()
-	_info_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	_info_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	_info_panel.offset_top = 52
-	_info_panel.offset_right = -10
-	_info_panel.custom_minimum_size = Vector2(340, 0)
-	var info_box := VBoxContainer.new()
-	info_box.add_theme_constant_override("separation", 6)
-	_info_title = _label(19)
-	_info_title.add_theme_color_override("font_color", ACCENT)
-	info_box.add_child(_info_title)
-	_info_body = _label(14)
-	_info_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_info_body.custom_minimum_size = Vector2(320, 0)
-	if _touch:
-		var scroll := ScrollContainer.new()
-		scroll.custom_minimum_size = Vector2(330, 190)
-		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-		_info_body.custom_minimum_size = Vector2(310, 0)
-		scroll.add_child(_info_body)
-		info_box.add_child(scroll)
-	else:
-		info_box.add_child(_info_body)
-	_info_buttons = HBoxContainer.new()
-	_sell_btn = _button("Sell")
-	_sell_btn.pressed.connect(controller.sell_selected)
-	_move_btn = _button("Move")
-	_move_btn.pressed.connect(controller.start_move_selected)
-	_info_buttons.add_child(_sell_btn)
-	_info_buttons.add_child(_move_btn)
-	info_box.add_child(_info_buttons)
-	_recipe_btn = _button("Recipe")
-	_recipe_btn.tooltip_text = "Click to switch recipe. Buffered inputs go back to the Core."
-	_recipe_btn.pressed.connect(_cycle_recipe)
-	_recipe_btn.visible = false
-	info_box.add_child(_recipe_btn)
-	_info_panel.add_child(info_box)
-	_info_panel.visible = false
-	root.add_child(_info_panel)
 
 	# Bottom left: hint + toolbar. Spans up to the minimap and wraps into
 	# several rows when the HUD is scaled up.
@@ -572,7 +630,7 @@ func _build() -> void:
 		tab.set_meta("category", cat)
 		_tabs_row.add_child(tab)
 	var hint_tab := _label(12)
-	hint_tab.text = "" if GameSettings.touch_ui() else "  [Tab] next tab"
+	hint_tab.text = "  [Tab] next tab"
 	hint_tab.modulate = Color(1, 1, 1, 0.55)
 	_tabs_row.add_child(hint_tab)
 	bar_box.add_child(_tabs_row)
@@ -598,18 +656,76 @@ func _build() -> void:
 			["Core [H]", func() -> void: camera.center_on(sim.core.center() * WorldGrid.TILE_PX)],
 			["Credits", func() -> void: _credits.visible = not _credits.visible],
 			["Menu [Esc]", func() -> void: toggle_menu()]]
-	if _touch:
-		# Pinch zooms; Credits is in the menu. Keep the row narrow on phones.
-		cam_specs = [["Core", cam_specs[2][1]], ["Menu", cam_specs[4][1]]]
 	for spec in cam_specs:
 		var b := _button(spec[0])
 		b.pressed.connect(spec[1])
 		cam_row.add_child(b)
 	map_box.add_child(cam_row)
 	var minimap := Minimap.new()
-	minimap.setup(sim, camera, 190.0 if _touch else 300.0)
+	minimap.setup(sim, camera, 300.0)
 	map_box.add_child(minimap)
 	root.add_child(map_box)
+
+
+
+func _build() -> void:
+	_touch = GameSettings.touch_ui()
+	_root = Control.new()
+	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_root)
+	var root := _root
+	get_viewport().size_changed.connect(apply_ui_scale)
+	GameSettings.get_instance().changed.connect(apply_ui_scale)
+
+	if _touch:
+		_build_touch_frame(root)
+	else:
+		_build_desktop_frame(root)
+
+	# Right: info panel.
+	_info_panel = _panel()
+	_info_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_info_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_info_panel.offset_top = 52
+	_info_panel.offset_right = -10
+	_info_panel.custom_minimum_size = Vector2(340, 0)
+	var info_box := VBoxContainer.new()
+	info_box.add_theme_constant_override("separation", 6)
+	_info_title = _label(19)
+	_info_title.add_theme_color_override("font_color", ACCENT)
+	info_box.add_child(_info_title)
+	_info_body = _label(14)
+	_info_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_info_body.custom_minimum_size = Vector2(320, 0)
+	if _touch:
+		_info_panel.offset_top = 44
+		_info_panel.custom_minimum_size = Vector2(300, 0)
+		_info_title.add_theme_font_size_override("font_size", 16)
+		_info_body.add_theme_font_size_override("font_size", 13)
+		var scroll := ScrollContainer.new()
+		scroll.custom_minimum_size = Vector2(290, 130)
+		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		_info_body.custom_minimum_size = Vector2(270, 0)
+		scroll.add_child(_info_body)
+		info_box.add_child(scroll)
+	else:
+		info_box.add_child(_info_body)
+	_info_buttons = HBoxContainer.new()
+	_sell_btn = _button("Sell")
+	_sell_btn.pressed.connect(controller.sell_selected)
+	_move_btn = _button("Move")
+	_move_btn.pressed.connect(controller.start_move_selected)
+	_info_buttons.add_child(_sell_btn)
+	_info_buttons.add_child(_move_btn)
+	info_box.add_child(_info_buttons)
+	_recipe_btn = _button("Recipe")
+	_recipe_btn.tooltip_text = "Click to switch recipe. Buffered inputs go back to the Core."
+	_recipe_btn.pressed.connect(_cycle_recipe)
+	_recipe_btn.visible = false
+	info_box.add_child(_recipe_btn)
+	_info_panel.add_child(info_box)
+	_info_panel.visible = false
+	root.add_child(_info_panel)
 
 	# Credits screen (same content as assets/CREDITS.md).
 	_credits = _panel()
@@ -633,8 +749,6 @@ func _build() -> void:
 	_credits.visible = false
 	root.add_child(_credits)
 
-	if _touch:
-		_build_touch_bar(root)
 	_build_menu(root)
 
 	# Toast.
@@ -676,18 +790,29 @@ func _rebuild_toolbar() -> void:
 		var mats := PackedStringArray()
 		for id in def.material_cost:
 			mats.append("%d %s" % [def.material_cost[id], String(id).split("_")[0]])
-		var btn := _button("%s\n[%d] %d cr%s" % [def.display_name, def.toolbar_slot, def.cost, (" + " + ", ".join(mats)) if not mats.is_empty() else ""])
+		var label := "%s\n[%d] %d cr%s" % [def.display_name, def.toolbar_slot, def.cost, (" + " + ", ".join(mats)) if not mats.is_empty() else ""]
+		if _touch:  # Name + credits; the full cost shows in the hint once picked.
+			label = "%s\n%d cr%s" % [def.display_name, def.cost, " +" if not mats.is_empty() else ""]
+		var btn := _button(label)
+		if _touch:
+			btn.custom_minimum_size = Vector2(84, 46)
+			btn.add_theme_font_size_override("font_size", 12)
 		btn.tooltip_text = def.description
 		btn.pressed.connect(controller.select_build.bind(def))
 		_toolbar.add_child(btn)
 		_tool_buttons[def] = btn
-	var dig := _button("Excavate\n[X] %d cr" % sim.rules.excavate_cost)
+	var dig := _button(("Excavate\n%d cr" if _touch else "Excavate\n[X] %d cr") % sim.rules.excavate_cost)
+	if _touch:
+		dig.custom_minimum_size = Vector2(76, 46)
+		dig.add_theme_font_size_override("font_size", 12)
 	dig.pressed.connect(controller.select_excavate)
 	_toolbar.add_child(dig)
 	_tool_buttons[&"excavate"] = dig
 	for tab in _tabs_row.get_children():
 		if tab is Button:
 			(tab as Button).button_pressed = tab.get_meta("category") == _shown_category
+	if _cat_btn != null:
+		_cat_btn.text = "%s  >" % String(_shown_category).capitalize()
 
 
 func _refresh_tools() -> void:
@@ -859,13 +984,13 @@ static func _clock_text(seconds: float) -> String:
 	return "%d:%02d" % [s / 60, s % 60]
 
 
-static func _panel() -> PanelContainer:
+static func _panel(margin: int = 10) -> PanelContainer:
 	var p := PanelContainer.new()
 	var style := StyleBoxFlat.new()
 	style.bg_color = PANEL_BG
 	style.border_color = PANEL_BORDER
 	style.set_border_width_all(1)
-	style.set_content_margin_all(10)
+	style.set_content_margin_all(margin)
 	style.set_corner_radius_all(6)
 	p.add_theme_stylebox_override("panel", style)
 	return p
@@ -876,6 +1001,15 @@ static func _label(size: int) -> Label:
 	l.add_theme_font_size_override("font_size", size)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return l
+
+
+## Compact phone button with a fixed minimum width.
+static func _small_button(text: String, action: Callable, width: float) -> Button:
+	var b := _button(text)
+	b.custom_minimum_size = Vector2(width, 36)
+	b.add_theme_font_size_override("font_size", 13)
+	b.pressed.connect(action)
+	return b
 
 
 static func _button(text: String) -> Button:
