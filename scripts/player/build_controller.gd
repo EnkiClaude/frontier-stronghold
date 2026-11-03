@@ -10,7 +10,7 @@ signal changed
 ## Esc pressed with nothing to cancel: open the game menu.
 signal menu_requested
 
-enum Mode { SELECT, BUILD, EXCAVATE, MOVE }
+enum Mode { SELECT, BUILD, EXCAVATE, MOVE, SELL }
 
 ## Seconds the cursor must rest before the "what if" route is computed.
 const WHATIF_DELAY := 0.12
@@ -164,6 +164,26 @@ func select_excavate() -> void:
 	changed.emit()
 
 
+## Touch: tap/swipe sells instead of building (the touch equivalent of
+## right-click and right-drag).
+func select_sell_mode() -> void:
+	if mode == Mode.SELL:
+		cancel()
+		return
+	mode = Mode.SELL
+	build_def = null
+	_set_selected(null)
+	changed.emit()
+
+
+## A second finger touched the screen: whatever the first finger started
+## (build drag, sell swipe) is a camera gesture, not an action.
+func abort_gesture() -> void:
+	_dragging = false
+	_swiping = false
+	_ghost_key = ""
+
+
 func cancel() -> void:
 	mode = Mode.SELECT
 	build_def = null
@@ -226,6 +246,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_released("primary"):
 		if _dragging:
 			_commit_drag()
+		elif mode == Mode.SELL:
+			end_sell_swipe()
 	elif event.is_action_pressed("secondary"):
 		if mode != Mode.SELECT:
 			cancel()
@@ -262,6 +284,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _on_primary_pressed() -> void:
 	match mode:
+		Mode.SELL:
+			begin_sell_swipe()
 		Mode.SELECT:
 			_set_selected(sim.building_at(_hover))
 		Mode.BUILD, Mode.EXCAVATE:
@@ -404,6 +428,13 @@ func power_warning() -> bool:
 
 
 func _update_ghosts() -> void:
+	if mode == Mode.SELL:
+		_ghosts.clear()
+		_ghost_key = ""
+		var b := sim.building_at(_hover)
+		if b != null and b.def.sellable:
+			_ghosts.append([b.origin, b.size(), false, b.rotation])  # Red = will be sold.
+		return
 	if mode == Mode.SELECT:
 		_ghosts.clear()
 		_ghost_key = ""

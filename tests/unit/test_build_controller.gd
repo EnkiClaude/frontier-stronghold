@@ -87,3 +87,37 @@ func test_right_drag_sells_a_locked_line() -> void:
 		assert_eq(sim.building_at(Vector2i(x, 4)), null, "wall at x=%d should be sold" % x)
 	assert_true(sim.building_at(Vector2i(23, 5)) != null, "off-line wall must survive")
 	c.free()
+
+
+func test_sell_mode_tap_and_swipe() -> void:
+	var sim := SimHelpers.open_sim()
+	for x in range(20, 24):
+		sim.place(&"wall", Vector2i(x, 4))
+	var c := _controller(sim)
+	c.select_sell_mode()
+	assert_eq(c.mode, BuildController.Mode.SELL)
+	c.mouse_override = Vector2(20.5, 4.5)
+	c._process(0.016)
+	c._on_primary_pressed()
+	c.mouse_override = Vector2(23.5, 4.5)
+	c._process(0.016)
+	c.end_sell_swipe()
+	for x in range(20, 24):
+		assert_eq(sim.building_at(Vector2i(x, 4)), null)
+	c.free()
+
+
+func test_second_finger_aborts_build_drag() -> void:
+	var sim := SimHelpers.open_sim()
+	var c := _controller(sim)
+	c.select_build(sim.reg.buildings_by_id[&"wall"])
+	c.mouse_override = Vector2(20.5, 4.5)
+	c._process(0.016)
+	c._on_primary_pressed()
+	c.abort_gesture()
+	c.mouse_override = Vector2(25.5, 4.5)
+	c._process(0.016)
+	if c._dragging:
+		c._commit_drag()
+	assert_eq(sim.building_at(Vector2i(20, 4)), null, "pinching must not place walls")
+	c.free()

@@ -98,12 +98,18 @@ func _ready() -> void:
 	camera.make_current()
 	camera.clamp_to_world()
 	camera.middle_clicked.connect(controller.pipette)
+	camera.multi_touch_started.connect(controller.abort_gesture)
+	camera.one_finger_pan = func() -> bool: return controller.mode == BuildController.Mode.SELECT
 
 	hud = Hud.new()
 	add_child(hud)
 	hud.setup(sim, clock, controller, camera)
 	hud.restart_requested.connect(func() -> void: get_tree().reload_current_scene())
 	hud.quit_requested.connect(func() -> void: get_tree().quit())
+	hud.pause_toggled.connect(func() -> void:
+		clock.paused = not clock.paused
+		_speed_changed())
+	hud.speed_cycled.connect(func() -> void: _set_speed_index((_speed_index + 1) % SPEEDS.size()))
 	GameSettings.get_instance().changed.connect(_apply_settings.bind(route_view))
 	_apply_settings(route_view)
 

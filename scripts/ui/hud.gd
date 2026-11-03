@@ -10,6 +10,9 @@ extends CanvasLayer
 
 signal restart_requested
 signal quit_requested
+## Touch bar buttons (Main owns the clock speed index).
+signal pause_toggled
+signal speed_cycled
 
 const PANEL_BG := Color(0.03, 0.05, 0.08, 0.88)
 const PANEL_BORDER := Color(0.3, 0.9, 1.0, 0.35)
@@ -35,6 +38,12 @@ var _recipe_btn: Button
 var _toolbar: HFlowContainer
 var _tabs_row: HBoxContainer
 var _shown_category: StringName = &""
+var _touch := false
+var _res_body_visible := true
+var _portrait_note: Label
+var _sell_mode_btn: Button
+var _pause_btn: Button
+var _speed_btn: Button
 var _tool_buttons: Dictionary = {}  # BuildingDef or &"excavate" -> Button
 var _toast: Label
 var _toast_time := 0.0
@@ -101,6 +110,10 @@ func _process(delta: float) -> void:
 	var reason := controller.ghost_reason()
 	if reason == "" and controller.power_warning():
 		reason = "No Power Node in range — this tower needs power (Power tab)."
+	_hint.visible = reason != "" or not GameSettings.touch_ui()
+	if controller.mode == BuildController.Mode.SELL:
+		reason = "SELL MODE: tap or swipe over buildings to sell them (tap Sell again to stop)"
+		_hint.visible = true
 	_hint.text = reason if reason != "" else "LMB build/select · drag for lines · RMB cancel/sell · R rotate · X excavate · M move · Space pause · +/- speed · scroll/pinch zoom"
 	_hint.modulate = Color(1, 0.55, 0.5) if reason != "" else Color(1, 1, 1, 0.75)
 	_refresh -= delta
@@ -127,7 +140,10 @@ func _sample_production() -> void:
 
 func _resources_text() -> String:
 	var lines := PackedStringArray()
-	lines.append("[color=#73f2ff][b]RESOURCES[/b][/color]")
+	if not _res_body_visible:
+		var ammo_s := sim.ammo_summary()
+		return "[color=#73f2ff][b]RESOURCES +[/b][/color]  %d cr%s" % [sim.credits, "   [color=#ff5a4a]%d empty[/color]" % ammo_s[2] if ammo_s[2] > 0 else ""]
+	lines.append("[color=#73f2ff][b]RESOURCES%s[/b][/color]" % (" -" if _touch else ""))
 	lines.append("Credits: [b]%d[/b]%s" % [sim.credits, "   [color=#9aa](+%d recycled)[/color]" % sim.factory.recycled_total if sim.factory.recycled_total > 0 else ""])
 	var totals := sim.item_totals()
 	var now := sim.factory.produced
@@ -193,12 +209,16 @@ func _refresh_info() -> void:
 		_move_btn.disabled = not b.def.relocatable or not b.is_active()
 		_recipe_btn.visible = not b.def.recipes.is_empty()
 		if _recipe_btn.visible:
-			_recipe_btn.text = "Recipe: %s  ▶" % _recipe_name(b.recipe())
+			_recipe_btn.text = "Recipe: %s  >" % _recipe_name(b.recipe())
 		_info_panel.visible = true
 	elif tool_def != null:
 		_info_title.text = "Build: %s" % tool_def.display_name
-		_info_body.text = _def_text(tool_def) + "\n\nCost: %s · %dx%d tiles%s" % [
-			_cost_text(tool_def), tool_def.size.x, tool_def.size.y, " · R to rotate" if tool_def.directional else ""]
+		if _touch:
+			# Phones: keep the map visible while building - just the cost.
+			_info_body.text = "Cost: %s" % _cost_text(tool_def)
+		else:
+			_info_body.text = _def_text(tool_def) + "\n\nCost: %s · %dx%d tiles%s" % [
+				_cost_text(tool_def), tool_def.size.x, tool_def.size.y, " · R to rotate" if tool_def.directional else ""]
 		_info_buttons.visible = false
 		_recipe_btn.visible = false
 		_info_panel.visible = true
@@ -392,7 +412,53 @@ func _inv_text(inv: Dictionary) -> String:
 
 # --- Layout ------------------------------------------------------------------
 
+## Big buttons for everything that needs right-click or a key on desktop.
+func _build_touch_bar(root: Control) -> void:
+	# Left column under the (collapsed) resources panel.
+	var col := VBoxContainer.new()
+	col.position = Vector2(10, 104)
+	col.add_theme_constant_override("separation", 4)
+	var pair := HBoxContainer.new()
+	pair.add_theme_constant_override("separation", 4)
+	var specs := [
+		["Cancel", func() -> void:
+			controller.cancel()
+			controller._set_selected(null)],
+		["Rotate", func() -> void: controller.rotation_steps = (controller.rotation_steps + 1) % 4],
+		["Sell", func() -> void: controller.select_sell_mode()],
+		["Pause", func() -> void: pause_toggled.emit()],
+		["Speed", func() -> void: speed_cycled.emit()],
+	]
+	for spec in specs:
+		var b := _button(spec[0])
+		b.custom_minimum_size = Vector2(76 if spec[0] in ["Pause", "Speed"] else 156, 42)
+		b.pressed.connect(spec[1])
+		if spec[0] in ["Pause", "Speed"]:
+			pair.add_child(b)
+		else:
+			col.add_child(b)
+		match spec[0]:
+			"Sell":
+				_sell_mode_btn = b
+			"Pause":
+				_pause_btn = b
+			"Speed":
+				_speed_btn = b
+	col.add_child(pair)
+	root.add_child(col)
+	root.move_child(col, 0)  # Resources panel (when expanded) draws on top.
+	_portrait_note = _label(22)
+	_portrait_note.text = "Rotate your phone to landscape"
+	_portrait_note.set_anchors_preset(Control.PRESET_CENTER)
+	_portrait_note.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_portrait_note.add_theme_color_override("font_outline_color", Color.BLACK)
+	_portrait_note.add_theme_constant_override("outline_size", 8)
+	_portrait_note.visible = false
+	root.add_child(_portrait_note)
+
+
 func _build() -> void:
+	_touch = GameSettings.touch_ui()
 	_root = Control.new()
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_root)
@@ -428,6 +494,12 @@ func _build() -> void:
 	_resources.autowrap_mode = TextServer.AUTOWRAP_OFF
 	_resources.custom_minimum_size = Vector2(250, 0)
 	_resources.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if _touch:
+		_res_body_visible = false
+		res.gui_input.connect(func(ev: InputEvent) -> void:
+			if ev is InputEventMouseButton and ev.pressed:
+				_res_body_visible = not _res_body_visible
+				_resources.text = _resources_text())
 	_resources.add_theme_font_size_override("normal_font_size", 15)
 	_resources.add_theme_font_size_override("bold_font_size", 15)
 	res.add_child(_resources)
@@ -448,7 +520,15 @@ func _build() -> void:
 	_info_body = _label(14)
 	_info_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_info_body.custom_minimum_size = Vector2(320, 0)
-	info_box.add_child(_info_body)
+	if _touch:
+		var scroll := ScrollContainer.new()
+		scroll.custom_minimum_size = Vector2(330, 190)
+		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		_info_body.custom_minimum_size = Vector2(310, 0)
+		scroll.add_child(_info_body)
+		info_box.add_child(scroll)
+	else:
+		info_box.add_child(_info_body)
 	_info_buttons = HBoxContainer.new()
 	_sell_btn = _button("Sell")
 	_sell_btn.pressed.connect(controller.sell_selected)
@@ -492,7 +572,7 @@ func _build() -> void:
 		tab.set_meta("category", cat)
 		_tabs_row.add_child(tab)
 	var hint_tab := _label(12)
-	hint_tab.text = "  [Tab] next tab"
+	hint_tab.text = "" if GameSettings.touch_ui() else "  [Tab] next tab"
 	hint_tab.modulate = Color(1, 1, 1, 0.55)
 	_tabs_row.add_child(hint_tab)
 	bar_box.add_child(_tabs_row)
@@ -514,16 +594,20 @@ func _build() -> void:
 	map_box.offset_bottom = -10
 	var cam_row := HBoxContainer.new()
 	cam_row.alignment = BoxContainer.ALIGNMENT_END
-	for spec in [["Zoom +", func() -> void: camera.zoom_by(1.3)], ["Zoom −", func() -> void: camera.zoom_by(1.0 / 1.3)],
+	var cam_specs := [["Zoom +", func() -> void: camera.zoom_by(1.3)], ["Zoom −", func() -> void: camera.zoom_by(1.0 / 1.3)],
 			["Core [H]", func() -> void: camera.center_on(sim.core.center() * WorldGrid.TILE_PX)],
 			["Credits", func() -> void: _credits.visible = not _credits.visible],
-			["Menu [Esc]", func() -> void: toggle_menu()]]:
+			["Menu [Esc]", func() -> void: toggle_menu()]]
+	if _touch:
+		# Pinch zooms; Credits is in the menu. Keep the row narrow on phones.
+		cam_specs = [["Core", cam_specs[2][1]], ["Menu", cam_specs[4][1]]]
+	for spec in cam_specs:
 		var b := _button(spec[0])
 		b.pressed.connect(spec[1])
 		cam_row.add_child(b)
 	map_box.add_child(cam_row)
 	var minimap := Minimap.new()
-	minimap.setup(sim, camera, 300.0)
+	minimap.setup(sim, camera, 190.0 if _touch else 300.0)
 	map_box.add_child(minimap)
 	root.add_child(map_box)
 
@@ -549,6 +633,8 @@ func _build() -> void:
 	_credits.visible = false
 	root.add_child(_credits)
 
+	if _touch:
+		_build_touch_bar(root)
 	_build_menu(root)
 
 	# Toast.
@@ -607,6 +693,9 @@ func _rebuild_toolbar() -> void:
 func _refresh_tools() -> void:
 	if controller.category != _shown_category:
 		_rebuild_toolbar()
+	for tab in _tabs_row.get_children():
+		if tab is Button:
+			(tab as Button).set_pressed_no_signal(tab.get_meta("category") == _shown_category)
 	for key in _tool_buttons:
 		var btn: Button = _tool_buttons[key]
 		var active := false
@@ -623,9 +712,15 @@ func _refresh_tools() -> void:
 func apply_ui_scale() -> void:
 	if _root == null:
 		return
-	var s := clampf(GameSettings.get_instance().ui_scale, 0.75, 2.0)
+	var s := clampf(GameSettings.get_instance().ui_scale, 0.75, 2.5)
+	var vp := get_viewport().get_visible_rect().size
+	# Phones: keep clear of rounded corners / the notch in landscape.
+	var margin := Vector2(36, 6) if _touch else Vector2.ZERO
 	_root.scale = Vector2(s, s)
-	_root.size = get_viewport().get_visible_rect().size / s
+	_root.position = margin
+	_root.size = (vp - margin * 2.0) / s
+	if _portrait_note != null:
+		_portrait_note.visible = vp.y > vp.x
 
 
 func is_menu_open() -> bool:
@@ -684,7 +779,7 @@ func _build_menu(root: Control) -> void:
 	opts.text = "Options"
 	opts.add_theme_color_override("font_color", ACCENT)
 	box.add_child(opts)
-	box.add_child(_slider_row("HUD scale", "ui_scale", 0.75, 2.0, 0.05))
+	box.add_child(_slider_row("HUD scale", "ui_scale", 0.75, 2.5, 0.05))
 	box.add_child(_slider_row("Camera pan speed", "pan_speed", 0.5, 2.5, 0.1))
 	box.add_child(_slider_row("Zoom sensitivity", "zoom_speed", 0.3, 2.5, 0.1))
 	box.add_child(_check_row("Show enemy routes", "show_routes"))

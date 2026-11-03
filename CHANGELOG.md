@@ -5,6 +5,21 @@ goes up for each development phase and PATCH for fixes and playtest feedback.
 The version is set in `project.godot` (`application/config/version`), and it
 appears in the window title, the HUD and every exported file name.
 
+## v0.3.2 — 2026-11-03 (mobile / web build)
+- **Playable in a phone browser** (iPhone Safari, Android Chrome): a single-threaded Web export
+  published to GitHub Pages. Add it to your Home Screen for full screen.
+- **Touch controls** (switched on automatically on phones and tablets):
+  - Tap to select or place; drag to draw lines of walls or belts.
+  - One finger pans when no build tool is active; two fingers pan and pinch to zoom.
+  - A second finger cancels whatever the first finger started, so pinching never places walls.
+  - On-screen **Cancel, Rotate, Sell** (tap or swipe over buildings to sell), **Pause, Speed** and **Menu** buttons.
+- **Phone layout:**
+  - HUD scale 2.0 by default (up to 2.5 in options).
+  - Collapsible resources panel (tap it); smaller minimap.
+  - A compact cost line while building; a scrollable info panel.
+  - Margins for the notch and rounded corners; a "rotate to landscape" notice in portrait.
+- Desktop is unchanged.
+
 ## v0.3.1 — 2026-11-03 (playtest feedback: logistics and pacing)
 Design: `docs/decisions/ADR-008-supply-drones-belt-routing-waves.md`.
 - **Supply drones:** ammo towers refill automatically from the Core or any Storage within 45 tiles.

@@ -10,9 +10,12 @@ Read `PROJECT_PLAN.md` (design), `TODO.md` (current work), `DEVELOPMENT_LOG.md`
 - Simulation (`scripts/sim`, `pathfinding`, `logistics`, `enemies`, `buildings`) is
   plain data with no Nodes (ADR-001). Views and art changes never touch it.
 - Game definitions live in `data/*.tres`. Don't hardcode stats in scripts.
-- **Versioning:** bump `application/config/version` in `project.godot` and both
+- **Versioning:** bump `application/config/version` in `project.godot` and the
   version fields in `export_presets.cfg`, add a `CHANGELOG.md` entry, and export
   with `tools/export.sh`. Every file given to the user carries the version in its name.
+- **Web build:** `tools/export.sh Web`, then publish the folder to the `gh-pages` branch
+  (orphan, force-pushed, with `.nojekyll`). Phone layout/touch: test with `--touch` or
+  headless Chromium using iPhone emulation.
 - Check visuals with `tools/screenshot.gd` (scenarios: start, battle, supply, enemy).
   Pass `--no-art` to check the fallback colours.
 

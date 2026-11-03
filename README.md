@@ -18,6 +18,16 @@ Next: a human playtest, then Phase 2 (economy).
   [godot-builds releases](https://github.com/godotengine/godot-builds/releases/tag/4.7.2-stable).
 - No other dependencies.
 
+## Play on a phone (web build)
+
+**https://enkiclaude.github.io/frontier-stronghold/** (after GitHub Pages is enabled for the `gh-pages` branch).
+
+Open it in Safari or Chrome, turn the phone sideways, and optionally use
+*Share → Add to Home Screen* for full screen. Touch controls:
+- tap to place or select; drag to draw lines;
+- one finger pans when no tool is selected; pinch to zoom;
+- the left-hand buttons do Cancel, Rotate, Sell, Pause and Speed.
+
 ## Running the game
 
 1. Open Godot, then **Import** and select `project.godot` in this folder.
@@ -129,6 +139,7 @@ sends items left, straight and right in turn.
 ```sh
 tools/export.sh            # macOS, Windows and Linux into build/
 tools/export.sh macOS      # just one platform
+tools/export.sh Web        # browser build (folder + zip) for GitHub Pages
 ```
 
 Builds are named `FrontierStronghold-v<version>-<platform>`. The version lives

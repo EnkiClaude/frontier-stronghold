@@ -80,3 +80,49 @@ func test_buttons_zoom_and_center() -> void:
 	cam.center_on(Vector2(3000, 2000))
 	assert_eq(cam.position, Vector2(3000, 2000))
 	cam.queue_free()
+
+
+func _touch(cam: CameraController, index: int, pos: Vector2, pressed: bool) -> void:
+	var ev := InputEventScreenTouch.new()
+	ev.index = index
+	ev.position = pos
+	ev.pressed = pressed
+	cam._unhandled_input(ev)
+
+
+func _drag(cam: CameraController, index: int, pos: Vector2, rel: Vector2) -> void:
+	var ev := InputEventScreenDrag.new()
+	ev.index = index
+	ev.position = pos
+	ev.relative = rel
+	cam._unhandled_input(ev)
+
+
+func test_two_finger_pinch_zooms_and_pans() -> void:
+	var cam := _camera()
+	var started := [false]
+	cam.multi_touch_started.connect(func() -> void: started[0] = true)
+	_touch(cam, 0, Vector2(700, 450), true)
+	_touch(cam, 1, Vector2(900, 450), true)
+	assert_true(started[0], "second finger is announced (build drag gets cancelled)")
+	_drag(cam, 1, Vector2(1100, 450), Vector2(200, 0))  # Fingers spread: 200 -> 400 px.
+	assert_true(cam.zoom.x > 1.4, "pinch out zooms in (got %.2f)" % cam.zoom.x)
+	var before := cam.position
+	_drag(cam, 0, Vector2(600, 450), Vector2(-100, 0))
+	_drag(cam, 1, Vector2(1000, 450), Vector2(-100, 0))
+	assert_true(cam.position.x > before.x, "two fingers moving left pan the view right")
+	cam.queue_free()
+
+
+func test_one_finger_pan_only_without_tool() -> void:
+	var cam := _camera()
+	var allow := [false]
+	cam.one_finger_pan = func() -> bool: return allow[0]
+	var start := cam.position
+	_touch(cam, 0, Vector2(800, 450), true)
+	_drag(cam, 0, Vector2(700, 450), Vector2(-100, 0))
+	assert_eq(cam.position, start, "a build tool is active: one finger draws, doesn't pan")
+	allow[0] = true
+	_drag(cam, 0, Vector2(600, 450), Vector2(-100, 0))
+	assert_true(cam.position.x > start.x, "no tool: one finger pans")
+	cam.queue_free()

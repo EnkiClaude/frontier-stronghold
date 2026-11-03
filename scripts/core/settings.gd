@@ -49,14 +49,23 @@ func set_option(key: String, value: Variant) -> void:
 	changed.emit()
 
 
+## True on phones/tablets (and touch-only browsers): enables the touch HUD,
+## gestures and a larger default HUD scale.
+static func touch_ui() -> bool:
+	return OS.has_feature("mobile") or OS.has_feature("web_ios") or OS.has_feature("web_android") \
+		or OS.get_cmdline_user_args().has("--touch")
+
+
 func load_settings() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(PATH) != OK:
+		if touch_ui():
+			ui_scale = 2.0  # Phone screens: desktop-sized HUD text would be unreadable.
 		return
 	for key in KEYS:
 		if cfg.has_section_key(SECTION, key):
 			set(key, cfg.get_value(SECTION, key))
-	ui_scale = clampf(ui_scale, 0.75, 2.0)
+	ui_scale = clampf(ui_scale, 0.75, 2.5)
 
 
 func save_settings() -> void:

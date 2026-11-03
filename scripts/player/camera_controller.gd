@@ -29,6 +29,15 @@ var _dragging := false
 var _drag_moved := 0.0
 ## Middle button released without dragging (pipette in the build controller).
 signal middle_clicked
+## A second finger touched the screen (the build controller aborts its drag).
+signal multi_touch_started
+
+## Returns true when a one-finger drag should pan the camera (no build tool
+## active). Set by Main; unset = never.
+var one_finger_pan: Callable
+## Active touches: index -> screen position.
+var _touches: Dictionary = {}
+var _touch_moved := 0.0
 ## Movement (px) below which a middle press counts as a click, not a pan.
 const CLICK_SLOP := 6.0
 
@@ -41,6 +50,9 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch or event is InputEventScreenDrag:
+		_handle_touch(event)
+		return
 	var handled := true
 	if event is InputEventMouseButton and (event as InputEventMouseButton).pressed \
 			and (event.button_index == MOUSE_BUTTON_WHEEL_UP or event.button_index == MOUSE_BUTTON_WHEEL_DOWN):
@@ -74,6 +86,50 @@ func _unhandled_input(event: InputEvent) -> void:
 		handled = false
 	if handled and is_inside_tree():
 		get_viewport().set_input_as_handled()
+
+
+## Touch gestures: two fingers pan + pinch-zoom; one finger pans when no tool is active.
+func _handle_touch(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		var st := event as InputEventScreenTouch
+		if st.pressed:
+			_touches[st.index] = st.position
+			if _touches.size() == 1:
+				_touch_moved = 0.0
+			elif _touches.size() == 2:
+				multi_touch_started.emit()
+		else:
+			_touches.erase(st.index)
+		return
+	var sd := event as InputEventScreenDrag
+	if not _touches.has(sd.index):
+		_touches[sd.index] = sd.position
+	if _touches.size() >= 2:
+		var keys := _touches.keys()
+		var a: Vector2 = _touches[keys[0]]
+		var b: Vector2 = _touches[keys[1]]
+		var before_center := (a + b) * 0.5
+		var before_dist := a.distance_to(b)
+		_touches[sd.index] = sd.position
+		a = _touches[keys[0]]
+		b = _touches[keys[1]]
+		var center := (a + b) * 0.5
+		position -= (center - before_center) / zoom.x
+		if before_dist > 1.0:
+			zoom_at(center, pow(a.distance_to(b) / before_dist, zoom_mult))
+		clamp_to_world()
+		if is_inside_tree():
+			get_viewport().set_input_as_handled()
+		return
+	_touches[sd.index] = sd.position
+	_touch_moved += sd.relative.length()
+	if one_finger_pan.is_valid() and one_finger_pan.call() and _touch_moved > CLICK_SLOP:
+		position -= sd.relative * pan_mult / zoom.x
+		clamp_to_world()
+
+
+func touch_count() -> int:
+	return _touches.size()
 
 
 ## Smallest allowed zoom: the whole strip height fits on screen, never less.

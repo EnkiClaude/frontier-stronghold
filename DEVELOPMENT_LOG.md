@@ -390,3 +390,25 @@ jumped from about 7 ms to 16 ms. The cause: every 0.5 s, each tower's supply
 check called `stockpile_buildings()`, which scanned all buildings
 (45 towers × 653 buildings). Active Storages are now kept in a list
 (`_storages`), and supply is skipped in unlimited-ammo mode. p95 is back to 8.6 ms.
+
+## 2026-11-03 — v0.3.2: mobile web build
+
+- **Route:** GitHub Pages (the repo was made public by the player). The web export is
+  single-threaded, because Pages can't send the COOP/COEP headers that threads need. Size: 39.5 MB `.wasm` + 0.4 MB `.pck`.
+- **Touch detection:** `GameSettings.touch_ui()` (`mobile` / `web_ios` / `web_android` feature tags, or `--touch`).
+- **Camera:** handles `InputEventScreenTouch`/`ScreenDrag` directly.
+  - Two fingers pan and pinch.
+  - One finger pans only when no tool is active.
+  - A second finger emits `multi_touch_started`, so the build controller aborts its drag.
+- **Controller:** new `Mode.SELL` (tap or swipe to sell).
+- **HUD:** touch bar (Cancel, Rotate, Sell, Pause, Speed), collapsible resources,
+  Core/Menu-only minimap buttons, notch margins, portrait notice, compact build info.
+- **Verified in headless Chromium emulating an iPhone 13 (landscape):**
+  - loads with no page errors;
+  - WebGL2 Compatibility renderer;
+  - the iOS feature tag is detected and the touch HUD appears;
+  - a tap selects a tool, and the ghost follows the finger;
+  - pinch zoom works.
+
+  **Not verified on a real iPhone/Safari.**
+- Tests: 141 pass (new: pinch/two-finger pan, one-finger pan gating, sell mode, gesture abort).
