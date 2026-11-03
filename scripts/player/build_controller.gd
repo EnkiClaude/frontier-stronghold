@@ -25,6 +25,10 @@ var building_view: BuildingRenderer
 var mode: Mode = Mode.SELECT
 var build_def: BuildingDef
 var rotation_steps: int = 0
+## Active toolbar tab (keys 1-9 pick buildings within it).
+var category: StringName = &"defense"
+## Recipe index to apply to crafters placed with the current tool (pipette).
+var _tool_recipe: Dictionary = {}  # BuildingDef -> recipe index
 var selected: Building
 
 var _hover := Vector2i(-9999, -9999)
@@ -53,9 +57,27 @@ func pipette() -> void:
 		return
 	mode = Mode.BUILD
 	build_def = b.def
+	category = b.def.category
 	rotation_steps = b.rotation
+	remember_recipe(b)
 	_set_selected(null)
 	changed.emit()
+
+
+## New crafters of this type will start with [param b]'s recipe.
+func remember_recipe(b: Building) -> void:
+	if not b.def.recipes.is_empty():
+		_tool_recipe[b.def] = b.recipe_index
+
+
+func set_category(cat: StringName) -> void:
+	category = cat
+	changed.emit()
+
+
+func next_category() -> void:
+	var cats := DataRegistry.CATEGORIES
+	set_category(cats[(cats.find(category) + 1) % cats.size()])
 
 
 ## Right-button sell swipe: everything the cursor passes over is sold. After
@@ -228,8 +250,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		sell_selected()
 	elif event.is_action_pressed("move_selected"):
 		start_move_selected()
+	elif event.is_action_pressed("next_tab"):
+		next_category()
+		get_viewport().set_input_as_handled()
 	else:
-		for def in sim.reg.toolbar_buildings():
+		for def in sim.reg.toolbar_buildings(category):
 			if event.is_action_pressed("tool_%d" % def.toolbar_slot):
 				select_build(def)
 				break
@@ -273,6 +298,12 @@ func _commit_drag() -> void:
 		var err := sim.excavate(g) if mode == Mode.EXCAVATE else sim.place(build_def.id, g, rot)
 		if err == "":
 			placed += 1
+			if mode == Mode.BUILD and _tool_recipe.has(build_def):
+				var nb := sim.building_at(g)
+				if nb != null and nb.def == build_def:
+					sim.set_recipe(nb.id, _tool_recipe[build_def])
+		elif err == GameSim.ERR_MATERIALS:
+			err = "Need %s" % sim.missing_materials(build_def)
 		elif first_err == "":
 			first_err = err
 	if first_err != "":
@@ -314,6 +345,14 @@ func _line_origins() -> Array[Vector2i]:
 	return out
 
 
+## The hovered electric tower would not be connected to any Power Node.
+var _power_warning := false
+
+
+func power_warning() -> bool:
+	return _power_warning and mode == Mode.BUILD
+
+
 func _update_ghosts() -> void:
 	if mode == Mode.SELECT:
 		_ghosts.clear()
@@ -327,6 +366,7 @@ func _update_ghosts() -> void:
 		return
 	_ghost_key = key
 	_ghosts.clear()
+	_power_warning = false
 	_ghost_reason = ""
 	var single := origins.size() == 1
 	for o in origins:
@@ -342,6 +382,12 @@ func _update_ghosts() -> void:
 					err = GameSim.ERR_CREDITS
 		_ghosts.append([o, _footprint(), err == "", _effective_rotation()])
 		if single:
+			if err == GameSim.ERR_MATERIALS:
+				err = "Need %s (build smelters to make them)" % sim.missing_materials(build_def)
+			elif err == "" and mode == Mode.BUILD and build_def.tower != null and build_def.tower.power_draw > 0.0 \
+					and not sim.power.covers(Rect2(o, _footprint())):
+				err = ""  # Allowed, but warn below.
+				_power_warning = true
 			_ghost_reason = err
 
 
@@ -412,7 +458,7 @@ func _draw() -> void:
 		var dir_def: BuildingDef = build_def if mode == Mode.BUILD else (selected.def if mode == Mode.MOVE and selected != null else null)
 		if dir_def != null and dir_def.directional:
 			_draw_chevron(rect, g[3])
-		if dir_def != null and (dir_def.kind == &"drill" or dir_def.kind == &"inserter" or dir_def.kind == &"crafter" or dir_def.tower != null):
+		if dir_def != null and (dir_def.kind == &"drill" or dir_def.kind == &"pump" or dir_def.kind == &"inserter" or dir_def.kind == &"crafter" or dir_def.tower != null):
 			# Show where the ghost would take items in / put them out.
 			var probe := Building.new()
 			probe.def = dir_def
@@ -427,6 +473,19 @@ func _draw() -> void:
 		else:
 			center = Vector2(_anchor()) + Vector2(_footprint()) * 0.5
 		draw_arc(center, range_def.tower.range_tiles, 0.0, TAU, 64, Color(1, 1, 1, 0.5), 0.06)
+	# Power: show node coverage while placing nodes or electric towers.
+	var power_def: BuildingDef = build_def if mode == Mode.BUILD else null
+	if power_def != null and (power_def.kind == &"power_node" or power_def.kind == &"generator" \
+			or (power_def.tower != null and power_def.tower.power_draw > 0.0)):
+		for n in sim.power.nodes:
+			draw_arc(n.center(), n.def.supply_radius, 0.0, TAU, 48, Color(1.0, 0.9, 0.3, 0.35), 0.05)
+		if power_def.kind == &"power_node":
+			var c := Vector2(_anchor()) + Vector2(0.5, 0.5)
+			draw_arc(c, power_def.supply_radius, 0.0, TAU, 48, Color(1.0, 0.9, 0.3, 0.8), 0.07)
+			draw_arc(c, power_def.link_range, 0.0, TAU, 64, Color(1.0, 0.9, 0.3, 0.3), 0.04)
+			for n in sim.power.nodes:
+				if n.center().distance_to(c) <= minf(n.def.link_range, power_def.link_range):
+					draw_line(c, n.center(), Color(1.0, 0.9, 0.3, 0.7), 0.06)
 	# Show the no-build radius of enemies near the cursor while building.
 	if mode != Mode.SELECT and sim.rules.no_build_radius > 0.0:
 		var r := sim.rules.no_build_radius

@@ -38,7 +38,11 @@
 - [ ] Effects: muzzle flashes, hit sparks, death bursts
 - [ ] Audio (CC0)
 
-## Phase 2 — Economy (after the playtest)
+## v0.3.0 — Towers, resources, storage, power ✅
+- [x] ADR-007, 5 towers, status effects, recipes, stockpile and material costs, Storage, Recycler, Pump, power
+- [ ] **Playtest:** does every resource feel worth mining? Are the special towers worth their supply chains?
+
+## Phase 2 — Economy (remaining)
 - [ ] ADR-006: storage, material construction costs, power, save format
 - [ ] Copper/coal/stone uses; walls cost stone; storage chests
 - [ ] Power network with brown-out

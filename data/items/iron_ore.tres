@@ -9,3 +9,4 @@ id = &"iron_ore"
 display_name = "Iron Ore"
 color = Color(0.55, 0.6, 0.72, 1)
 icon = ExtResource("2_icon")
+value = 1

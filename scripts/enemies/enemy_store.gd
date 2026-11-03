@@ -22,6 +22,12 @@ var max_hp := PackedFloat32Array()
 ## Tile the enemy is currently in, and the tile it is walking to.
 var cell := PackedInt32Array()
 var next := PackedInt32Array()
+## Status effects (ADR-007): slow multiplier and timers in seconds.
+var slow := PackedFloat32Array()
+var slow_t := PackedFloat32Array()
+var burn_dps := PackedFloat32Array()
+var burn_t := PackedFloat32Array()
+var stun_t := PackedFloat32Array()
 
 var _next_uid: int = 1
 
@@ -46,6 +52,11 @@ func spawn(type_index: int, tile: int, grid: WorldGrid, health: float, rng: SimR
 	max_hp.append(health)
 	cell.append(tile)
 	next.append(-1)
+	slow.append(1.0)
+	slow_t.append(0.0)
+	burn_dps.append(0.0)
+	burn_t.append(0.0)
+	stun_t.append(0.0)
 	count += 1
 	return id
 
@@ -66,6 +77,11 @@ func remove_at(i: int) -> void:
 		max_hp[i] = max_hp[last]
 		cell[i] = cell[last]
 		next[i] = next[last]
+		slow[i] = slow[last]
+		slow_t[i] = slow_t[last]
+		burn_dps[i] = burn_dps[last]
+		burn_t[i] = burn_t[last]
+		stun_t[i] = stun_t[last]
 	count = last
 	uid.resize(last)
 	type.resize(last)
@@ -79,6 +95,11 @@ func remove_at(i: int) -> void:
 	off_y.resize(last)
 	hp.resize(last)
 	max_hp.resize(last)
+	slow.resize(last)
+	slow_t.resize(last)
+	burn_dps.resize(last)
+	burn_t.resize(last)
+	stun_t.resize(last)
 
 
 ## Index of the enemy with [param id], or -1. [param hint] is checked first.

@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/building_def.gd" id="1_def"]
+[ext_resource type="Resource" path="res://data/towers/tesla_coil.tres" id="2_tower"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"tesla_coil"
+kind = &"tower"
+category = &"defense"
+display_name = "Tesla Coil"
+description = "Short-range electric pulse hitting everything around it and briefly stunning them. Best at maze corners. Needs power (Generator + Power Node)."
+size = Vector2i(2, 2)
+blocks_path = true
+cost = 160
+material_cost = {
+&"copper_plate": 15,
+&"steel": 5
+}
+build_time = 2.5
+color = Color(0.5, 0.52, 0.95, 1)
+toolbar_slot = 6
+directional = false
+tower = ExtResource("2_tower")

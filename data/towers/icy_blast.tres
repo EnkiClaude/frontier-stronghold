@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="TowerDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/tower_def.gd" id="1_tower"]
+
+[resource]
+script = ExtResource("1_tower")
+range_tiles = 6.0
+damage = 8.0
+fire_rate = 1.0
+damage_type = &"cold"
+targeting = &"first"
+attack = &"splash"
+splash_radius = 1.8
+slow_factor = 0.55
+slow_time = 2.5
+ammo_item = &"coolant_cell"
+rounds_per_item = 10
+magazine_size = 60
+starter_ammo = 30

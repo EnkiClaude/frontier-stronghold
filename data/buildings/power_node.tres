@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/building_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"power_node"
+kind = &"power_node"
+category = &"power"
+display_name = "Power Node"
+description = "Connects generators and electric towers within 4.5 tiles, and links to other nodes within 9 tiles."
+size = Vector2i(1, 1)
+blocks_path = false
+cost = 15
+material_cost = {
+&"copper_plate": 2
+}
+build_time = 0.5
+color = Color(0.92, 0.85, 0.4, 1)
+toolbar_slot = 2
+directional = false
+supply_radius = 4.5
+link_range = 9.0

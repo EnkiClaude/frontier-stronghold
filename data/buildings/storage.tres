@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/building_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"storage"
+kind = &"storage"
+category = &"logistics"
+display_name = "Storage"
+description = "Holds up to 200 items. Robotic Arms can put items in and take them out. Everything in Storage and the Core is your stockpile, used to pay material costs."
+size = Vector2i(2, 2)
+blocks_path = false
+cost = 40
+material_cost = {
+&"brick": 5
+}
+build_time = 1.5
+color = Color(0.42, 0.44, 0.4, 1)
+toolbar_slot = 3
+directional = false
+storage_capacity = 200

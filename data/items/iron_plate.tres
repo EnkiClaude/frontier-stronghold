@@ -9,3 +9,4 @@ id = &"iron_plate"
 display_name = "Iron Plate"
 color = Color(0.85, 0.88, 0.95, 1)
 icon = ExtResource("2_icon")
+value = 3

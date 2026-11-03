@@ -5,6 +5,7 @@
 [resource]
 script = ExtResource("1_def")
 id = &"ammo_magazine"
+display_name = "Ammo Magazine"
 inputs = {
 &"iron_plate": 1
 }

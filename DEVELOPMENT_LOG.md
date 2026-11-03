@@ -328,3 +328,41 @@ ADR-006 (culled canvas drawing instead of MultiMesh) is verified on the target p
 ### 2026-11-03 — Playtest note
 The player reports the early game is now doable with 1,500 starting credits and
 the closer nests (v0.2.3 balance). No economy tweak is needed for now; revisit in Phase 2.
+
+## 2026-11-03 — v0.3.0: towers, resources, storage, power (Phase 3 core + Phase 2 economy core)
+
+Design: ADR-007. Summary:
+- **New data:**
+  - 7 items, each with a credit value; 6 recipes.
+  - 5 towers with attack patterns (single, cone, splash, pulse, chain) and status effects (slow, burn, stun).
+  - 10 new buildings, organised into toolbar categories.
+- **Simulation:**
+  - Status effects stored per enemy; armour by damage type.
+  - `PowerSystem` (union-find node networks, generators that burn fuel only on demand, a satisfaction ratio).
+  - Stockpile (Core + Storage), material costs and refunds.
+  - Selectable crafter recipes, Recycler income, Water Pump, stone from excavation.
+- **UI:**
+  - Toolbar tabs, recipe button, material costs with current stock.
+  - Power and stockpile sections in the resources panel; power coverage previews; power lines.
+  - Distinct fallback shapes per tower, attack effects, status tints.
+- **Tests:** 127 pass. New suites: `test_economy`, `test_power`, `test_towers`.
+  The economy suite also checks that every item has at least one use.
+
+**Balance probe** (`tools/balance_probe.gd`: one tower, unlimited supply, 3 minutes of waves through one gap):
+
+| Tower | Kills | Leaks | Total cost | Kills / 100 cost |
+|---|---|---|---|---|
+| Chain Gun | 68 | 20 (Core died) | 100 | 68 |
+| Sniper Rifle | 96 | 16 | 240 | 40 |
+| Flamethrower | 94 | 1 | 190 | 50 |
+| Icy Blast (support) | 44 | 20 | 160 | 28 |
+| Tesla Coil | 95 | 10 | 250 | 38 |
+| Lightning Tower | 98 | 9 | 350 | 28 |
+
+After the first probe, I nerfed the Flamethrower (it held a lane alone with 0
+leaks at 170 cost) and buffed the Sniper (it was overpriced). The Chain Gun stays
+the most efficient per credit but can't hold alone; the special towers are
+stronger but need deeper supply chains.
+
+Benchmarks are unchanged (sim tick about 5.3 ms with 2,000 enemies).
+Not yet: save/load, powered machines, Regenerator/Fast/Boss enemies, art for the new buildings.

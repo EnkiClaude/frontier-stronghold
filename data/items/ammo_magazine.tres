@@ -9,3 +9,4 @@ id = &"ammo_magazine"
 display_name = "Ammo Magazine"
 color = Color(0.95, 0.75, 0.15, 1)
 icon = ExtResource("2_icon")
+value = 4

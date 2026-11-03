@@ -5,6 +5,7 @@
 [resource]
 script = ExtResource("1_def")
 id = &"iron_plate"
+display_name = "Iron Plate"
 inputs = {
 &"iron_ore": 1
 }

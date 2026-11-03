@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/building_def.gd" id="1_def"]
+[ext_resource type="Resource" path="res://data/towers/sniper_rifle.tres" id="2_tower"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"sniper_rifle"
+kind = &"tower"
+category = &"defense"
+display_name = "Sniper Rifle"
+description = "Very long range, slow, heavy armour-piercing shots. Targets the strongest enemy. Needs Rifle Rounds (steel) from an Ammo Factory."
+size = Vector2i(2, 2)
+blocks_path = true
+cost = 150
+material_cost = {
+&"steel": 10
+}
+build_time = 2.5
+color = Color(0.55, 0.62, 0.78, 1)
+toolbar_slot = 3
+directional = false
+tower = ExtResource("2_tower")

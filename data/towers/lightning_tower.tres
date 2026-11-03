@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="TowerDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/tower_def.gd" id="1_tower"]
+
+[resource]
+script = ExtResource("1_tower")
+range_tiles = 9.5
+damage = 28.0
+fire_rate = 0.7
+damage_type = &"electric"
+targeting = &"first"
+attack = &"chain"
+chain_count = 3
+chain_range = 3.0
+chain_falloff = 0.7
+stun_time = 0.15
+power_draw = 60.0
+ammo_item = &""
+rounds_per_item = 0
+magazine_size = 0
+starter_ammo = 0

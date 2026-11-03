@@ -16,3 +16,4 @@ build_time = 1.0
 color = Color(0.78, 0.74, 0.66, 1)
 toolbar_slot = 1
 texture = ExtResource("2_texture")
+category = &"defense"

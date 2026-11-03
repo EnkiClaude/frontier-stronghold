@@ -40,6 +40,8 @@ func _draw() -> void:
 		draw_rect(r.grow(-0.08), Color(1.0, 0.8, 0.2, 0.9), false, 0.1)
 		draw_rect(Rect2(r.position + Vector2(0.15, 0.75), Vector2(0.7 * (1.0 - left), 0.12)), Color(1.0, 0.8, 0.2))
 	var show_io := get_global_transform_with_canvas().get_scale().x >= IO_MIN_PX
+	for link in sim.power.links:
+		draw_line(link[0], link[1], Color(1.0, 0.9, 0.35, 0.55), 0.07)
 	for b: Building in sim.buildings.values():
 		var r := Rect2(b.origin, b.size())
 		var tex := DataRegistry.art(b.def.texture)
@@ -72,7 +74,7 @@ static func draw_io(canvas: CanvasItem, game: GameSim, b: Building, only_active:
 	var fresh_in := 1.0 if not only_active else activity(game, b.last_in_tick)
 	var fresh_out := 1.0 if not only_active else activity(game, b.last_out_tick)
 	match b.def.kind:
-		&"drill":
+		&"drill", &"pump":
 			var d := Vector2(BeltNetwork.DIRS[b.rotation % 4])
 			for t in game.factory.front_tiles(b):
 				if only_active and t != b.last_out_tile:
@@ -95,8 +97,8 @@ static func draw_io(canvas: CanvasItem, game: GameSim, b: Building, only_active:
 					_tile_frame(canvas, game, game.grid.idx(to.x, to.y), Color(OUT_COLOR, 0.8 * fresh_out))
 				io_arrow(canvas, c + d * 0.78, d, Color(OUT_COLOR, 0.35 + 0.65 * fresh_out))
 		&"crafter":
-			var ins: Array = b.def.recipe.inputs.keys()
-			var outs: Array = b.def.recipe.outputs.keys()
+			var ins: Array = b.recipe().inputs.keys()
+			var outs: Array = b.recipe().outputs.keys()
 			if fresh_in > 0.0:
 				for k in ins.size():
 					_badge(canvas, game, Rect2(r.position + Vector2(0.08 + k * 0.5, 0.08), Vector2(0.44, 0.44)), StringName(ins[k]), IN_COLOR, 0.35 + 0.65 * fresh_in)
@@ -181,18 +183,67 @@ func _draw_fallback(b: Building, r: Rect2) -> void:
 	if b == sim.core:
 		draw_rect(r.grow(-0.6), col.lightened(0.4))
 	elif b.def.tower != null:
-		var c := r.get_center()
-		var radius := minf(r.size.x, r.size.y) * 0.32
-		draw_circle(c, radius, col.darkened(0.35))
-		draw_line(c, c + Vector2.from_angle(b.aim_angle) * radius * 1.6, Color(0.15, 0.15, 0.15, col.a), 0.22)
+		_draw_tower_shape(b, r, col)
 	match b.def.kind:
+		&"storage":
+			var fill := float(b.stored_count()) / maxf(1.0, b.def.storage_capacity)
+			draw_rect(r.grow(-0.35), col.darkened(0.45))
+			draw_rect(Rect2(r.position + Vector2(0.35, r.size.y - 0.35 - (r.size.y - 0.7) * fill), Vector2(r.size.x - 0.7, (r.size.y - 0.7) * fill)), Color(0.55, 0.85, 1.0, 0.8))
+		&"generator":
+			draw_circle(r.get_center(), 0.6, col.darkened(0.45))
+			if b.burning:
+				var flick := 0.8 + 0.2 * sin(Time.get_ticks_msec() * 0.03)
+				draw_circle(r.get_center(), 0.42 * flick, Color(1.0, 0.55, 0.15))
+				draw_circle(r.get_center(), 0.22 * flick, Color(1.0, 0.9, 0.5))
+		&"power_node":
+			draw_rect(r.grow(-0.15), col.darkened(0.55))
+			draw_circle(r.get_center(), 0.26, col)
+			draw_line(r.get_center() + Vector2(-0.3, 0), r.get_center() + Vector2(0.3, 0), col.darkened(0.3), 0.08)
+		&"pump":
+			draw_circle(r.get_center(), 0.6, Color(0.15, 0.3, 0.55, col.a))
+			draw_arc(r.get_center(), 0.45, b.progress * TAU, b.progress * TAU + PI, 12, Color(0.6, 0.85, 1.0, col.a), 0.1)
+		&"recycler":
+			draw_circle(r.get_center(), 0.62, col.darkened(0.4))
+			for k in 3:
+				var a := b.progress * TAU + TAU * k / 3.0
+				draw_line(r.get_center(), r.get_center() + Vector2.from_angle(a) * 0.55, Color(0.7, 1.0, 0.75, col.a), 0.1)
 		&"drill":
 			draw_circle(r.get_center(), 0.55, b.def.color.darkened(0.4))
 			draw_line(r.get_center(), r.get_center() + Vector2.from_angle(b.progress * TAU) * 0.5, Color(0.9, 0.9, 0.9, 0.8), 0.1)
 		&"crafter":
-			var out_items := b.def.recipe.outputs.keys()
+			var out_items := b.recipe().outputs.keys()
 			var swatch: Color = sim.reg.items[sim.reg.item_index(StringName(out_items[0]))].color
 			draw_rect(Rect2(r.position + Vector2(0.55, 0.45), Vector2(0.9, 0.9)), swatch.darkened(0.2))
+
+
+## Distinct fallback shapes per attack pattern so towers are recognisable without art.
+func _draw_tower_shape(b: Building, r: Rect2, col: Color) -> void:
+	var c := r.get_center()
+	var radius := minf(r.size.x, r.size.y) * 0.32
+	var dark := Color(0.12, 0.12, 0.14, col.a)
+	match b.def.tower.attack:
+		&"pulse":
+			draw_circle(c, radius, col.darkened(0.35))
+			for k in 3:
+				draw_arc(c, radius * (0.4 + 0.3 * k), 0.0, TAU, 20, col.lightened(0.3), 0.06)
+		&"chain":
+			draw_circle(c, radius, col.darkened(0.35))
+			var d := Vector2.from_angle(b.aim_angle)
+			var s := Vector2(-d.y, d.x)
+			draw_polyline(PackedVector2Array([c - d * radius, c - d * 0.1 + s * 0.2, c + d * 0.1 - s * 0.2, c + d * radius * 1.4]), col.lightened(0.5), 0.1)
+		&"cone":
+			draw_circle(c, radius, col.darkened(0.35))
+			var d := Vector2.from_angle(b.aim_angle)
+			var s := Vector2(-d.y, d.x)
+			draw_colored_polygon(PackedVector2Array([c + s * 0.18, c + d * radius * 1.5 + s * 0.28, c + d * radius * 1.5 - s * 0.28, c - s * 0.18]), dark)
+		&"splash":
+			draw_circle(c, radius, col.darkened(0.35))
+			draw_line(c, c + Vector2.from_angle(b.aim_angle) * radius * 1.3, dark, 0.32)
+			draw_circle(c + Vector2.from_angle(b.aim_angle) * radius * 1.3, 0.16, col.lightened(0.4))
+		_:
+			draw_circle(c, radius, col.darkened(0.35))
+			var length := 2.2 if b.def.tower.range_tiles > 10.0 else 1.6  # Long barrel for the sniper.
+			draw_line(c, c + Vector2.from_angle(b.aim_angle) * radius * length, dark, 0.22 if length < 2.0 else 0.14)
 
 
 ## Status information drawn on top of every building, textured or not.
@@ -201,7 +252,7 @@ func _draw_overlays(b: Building, r: Rect2, textured: bool) -> void:
 	match b.def.kind:
 		&"inserter":
 			_draw_inserter_arm(b, r)
-		&"drill":
+		&"drill", &"pump":
 			if textured:
 				# Spinning bit indicator over the art.
 				draw_line(r.get_center(), r.get_center() + Vector2.from_angle(b.progress * TAU) * 0.55, Color(1.0, 0.8, 0.3, 0.8), 0.08)
@@ -216,7 +267,16 @@ func _draw_overlays(b: Building, r: Rect2, textured: bool) -> void:
 		var bar := Rect2(r.position + Vector2(0, -0.45), Vector2(r.size.x, 0.25))
 		draw_rect(bar, Color(0, 0, 0, 0.7))
 		draw_rect(Rect2(bar.position, Vector2(bar.size.x * frac, bar.size.y)), Color(0.3, 0.9, 0.4).lerp(Color(0.95, 0.25, 0.2), 1.0 - frac))
-	if b.def.tower != null and not sim.infinite_ammo and b.is_active():
+	if b.def.tower != null and b.def.tower.power_draw > 0.0 and b.is_active():
+		# Electric: yellow power bar; flashing bolt when unpowered and enemies are near.
+		var bar := Rect2(r.position + Vector2(0.1, r.size.y - 0.22), Vector2(r.size.x - 0.2, 0.14))
+		draw_rect(bar, Color(0, 0, 0, 0.7))
+		var sat := b.power_satisfaction if b.wants_power else (1.0 if b.network >= 0 else 0.0)
+		draw_rect(Rect2(bar.position, Vector2(bar.size.x * sat, bar.size.y)), Color(1.0, 0.92, 0.3))
+		if (b.network < 0 or (b.wants_power and b.power_satisfaction <= 0.0)) and int(Time.get_ticks_msec() / 400) % 2 == 0:
+			var c := r.get_center()
+			draw_polyline(PackedVector2Array([c + Vector2(0.1, -0.5), c + Vector2(-0.18, 0.05), c + Vector2(0.15, 0.0), c + Vector2(-0.1, 0.5)]), Color(1.0, 0.85, 0.1), 0.14)
+	if b.def.tower != null and b.def.tower.ammo_item != &"" and not sim.infinite_ammo and b.is_active():
 		var t := b.def.tower
 		var frac := float(b.ammo) / float(t.magazine_size)
 		var bar := Rect2(r.position + Vector2(0.1, r.size.y - 0.22), Vector2(r.size.x - 0.2, 0.14))

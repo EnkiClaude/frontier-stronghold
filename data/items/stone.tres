@@ -9,3 +9,4 @@ id = &"stone"
 display_name = "Stone"
 color = Color(0.75, 0.7, 0.6, 1)
 icon = ExtResource("2_icon")
+value = 1

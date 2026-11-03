@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/building_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"pump"
+kind = &"pump"
+category = &"production"
+display_name = "Water Pump"
+description = "Place next to water. Pumps Water and pushes it onto belts or machines on its front side (arrow). Water + copper plate make Coolant Cells."
+size = Vector2i(2, 2)
+blocks_path = false
+cost = 50
+material_cost = {
+&"copper_plate": 5
+}
+build_time = 1.5
+color = Color(0.28, 0.5, 0.82, 1)
+toolbar_slot = 2
+directional = true
+mining_time = 1.2
+pump_item = &"water"

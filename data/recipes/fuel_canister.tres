@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/recipe_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"fuel_canister"
+display_name = "Fuel Canister"
+inputs = {
+&"coal": 2,
+&"iron_plate": 1
+}
+outputs = {
+&"fuel_canister": 2
+}
+time = 2.0

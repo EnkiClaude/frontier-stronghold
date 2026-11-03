@@ -5,6 +5,35 @@ goes up for each development phase and PATCH for fixes and playtest feedback.
 The version is set in `project.godot` (`application/config/version`), and it
 appears in the window title, the HUD and every exported file name.
 
+## v0.3.0 — 2026-11-03 (towers, resources, storage, power)
+See `docs/decisions/ADR-007-resources-towers-power.md` for the design.
+
+- **Five new towers** (Defense tab), each with its own attack and supply:
+  - **Sniper Rifle:** long range, armour-piercing. Needs Rifle Rounds (made from steel).
+  - **Flamethrower:** fire cone that also sets enemies burning. Needs Fuel Canisters (coal + iron plate).
+  - **Icy Blast:** splash that slows enemies by 45%. Needs Coolant Cells (water + copper plate).
+  - **Tesla Coil:** stunning pulse around itself. Needs power.
+  - **Lightning Tower:** long-range strike that chains to 3 more enemies. Needs power.
+- **Every resource now has a job:**
+  - Copper: electric towers and power buildings, plus coolant.
+  - Coal: generator fuel, steel and flamethrower fuel.
+  - Stone: bricks, as a building material.
+  - Water (new Water Pump next to lakes): coolant.
+- **Recipes:** the Smelter makes Iron Plate, Copper Plate, Brick or Steel, and the
+  Ammo Factory makes Ammo Magazine, Rifle Rounds, Fuel Canister or Coolant Cell.
+  Pick the recipe in the info panel; the pipette copies it.
+- **Stockpile and Storage:** the Core and Storage buildings hold items that arms
+  can put in and take out. Advanced buildings cost credits plus materials from
+  the stockpile, and selling refunds materials too. You start with 20 iron
+  plates, 10 copper plates and 10 bricks, and excavating rock gives stone.
+- **Recycler:** turns delivered items into credits, so your factory can fund your defenses.
+- **Power:** Generators burn coal while something needs power, and Power Nodes
+  connect them to electric towers. A shortage slows how fast those towers recharge.
+- **Status effects:** slowed enemies tint cyan, burning ones orange, and stunned ones get a white ring.
+- **Toolbar tabs** (Defense, Logistics, Production, Power; Tab cycles); unaffordable buttons are dimmed.
+- The info panel shows recipes, materials (with how many you have), power and storage contents.
+- Balance: towers were tuned with `tools/balance_probe.gd` (each tower alone vs 3 minutes of waves).
+
 ## v0.2.4 — 2026-11-02 (playtest feedback #3)
 - **Fixed: enemies and belt items were invisible on macOS.** They were drawn
   with MultiMesh buffers, which rendered nothing on the player's Mac (the

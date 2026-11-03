@@ -1,7 +1,11 @@
 [gd_resource type="Resource" script_class="BuildingDef" format=3]
 
 [ext_resource type="Script" path="res://scripts/data/building_def.gd" id="1_def"]
-[ext_resource type="Resource" path="res://data/recipes/iron_plate.tres" id="2_recipe"]
+[ext_resource type="Script" path="res://scripts/data/recipe_def.gd" id="r_script"]
+[ext_resource type="Resource" path="res://data/recipes/iron_plate.tres" id="r_iron_plate"]
+[ext_resource type="Resource" path="res://data/recipes/copper_plate.tres" id="r_copper_plate"]
+[ext_resource type="Resource" path="res://data/recipes/brick.tres" id="r_brick"]
+[ext_resource type="Resource" path="res://data/recipes/steel.tres" id="r_steel"]
 [ext_resource type="Texture2D" path="res://assets/sprites/selfmade_scifi_placeholders/building_smelter.png" id="3_texture"]
 
 [resource]
@@ -9,15 +13,16 @@ script = ExtResource("1_def")
 id = &"smelter"
 kind = &"crafter"
 display_name = "Smelter"
-description = "Smelts Iron Ore into Iron Plates. Feed it with a Robotic Arm."
+description = "Smelts ore. Pick the recipe in the info panel: Iron Plate, Copper Plate, Brick (stone) or Steel (iron plate + coal). Feed it with a Robotic Arm."
 size = Vector2i(2, 2)
 blocks_path = false
 cost = 50
 build_time = 1.5
 color = Color(0.7, 0.42, 0.3, 1)
-toolbar_slot = 6
+toolbar_slot = 3
 directional = false
-recipe = ExtResource("2_recipe")
 input_limit = 10
 output_limit = 20
 texture = ExtResource("3_texture")
+category = &"production"
+recipes = Array[ExtResource("r_script")]([ExtResource("r_iron_plate"), ExtResource("r_copper_plate"), ExtResource("r_brick"), ExtResource("r_steel")])

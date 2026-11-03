@@ -14,6 +14,11 @@ var buildings: Dictionary
 var drills: Array[Building] = []
 var crafters: Array[Building] = []
 var inserters: Array[Building] = []
+var recyclers: Array[Building] = []
+## Credits earned by recyclers since GameSim last collected them.
+var recycled_credits: int = 0
+## Lifetime credits earned by recycling.
+var recycled_total: int = 0
 
 ## Lifetime production per item index (mined or crafted).
 var produced := PackedInt32Array()
@@ -35,18 +40,21 @@ func _init(registry: DataRegistry, world: WorldGrid, belt_network: BeltNetwork, 
 
 func register(b: Building) -> void:
 	match b.def.kind:
-		&"drill":
+		&"drill", &"pump":
 			drills.append(b)
 		&"crafter":
 			crafters.append(b)
 		&"inserter":
 			inserters.append(b)
+		&"recycler":
+			recyclers.append(b)
 
 
 func unregister(b: Building) -> void:
 	drills.erase(b)
 	crafters.erase(b)
 	inserters.erase(b)
+	recyclers.erase(b)
 
 
 ## Current simulation tick (set by GameSim before [method tick]); used to
@@ -61,6 +69,8 @@ func tick(dt: float) -> void:
 		_tick_crafter(b, dt)
 	for b in inserters:
 		_tick_inserter(b, dt)
+	for b in recyclers:
+		_tick_recycler(b, dt)
 
 
 # --- Drills ------------------------------------------------------------------
@@ -76,13 +86,25 @@ func drill_yield(cells: PackedInt32Array) -> int:
 	return -1
 
 
+## Item a pump at [param b] produces: its pump item if any footprint tile
+## touches water, else -1.
+func pump_yield(def: BuildingDef, origin: Vector2i, rot: int) -> int:
+	var water := reg.terrain_code(&"water")
+	var s := Building.footprint_size(def, rot)
+	for x in range(origin.x - 1, origin.x + s.x + 1):
+		for y in range(origin.y - 1, origin.y + s.y + 1):
+			if grid.in_bounds(x, y) and grid.get_terrain(x, y) == water:
+				return reg.item_index(def.pump_item)
+	return -1
+
+
 func _tick_drill(b: Building, dt: float) -> void:
 	if b.held < 0:
 		b.progress += dt / b.def.mining_time
 		if b.progress < 1.0:
 			return
 		b.progress = 0.0
-		b.held = drill_yield(b.cells)
+		b.held = pump_yield(b.def, b.origin, b.rotation) if b.def.kind == &"pump" else drill_yield(b.cells)
 		if b.held < 0:
 			return
 		produced[b.held] += 1
@@ -101,7 +123,7 @@ func _tick_drill(b: Building, dt: float) -> void:
 # --- Crafters ----------------------------------------------------------------
 
 func _tick_crafter(b: Building, dt: float) -> void:
-	var recipe := b.def.recipe
+	var recipe := b.recipe()
 	if not b.crafting:
 		var outs := _outputs(recipe)
 		var held := 0
@@ -128,6 +150,26 @@ func _tick_crafter(b: Building, dt: float) -> void:
 			produced[item] += outs[item]
 		b.crafting = false
 		b.progress = 0.0
+
+
+# --- Recyclers ---------------------------------------------------------------
+
+func _tick_recycler(b: Building, dt: float) -> void:
+	if b.inv_in.is_empty():
+		return
+	b.progress += dt / b.def.recycle_time
+	if b.progress < 1.0:
+		return
+	b.progress = 0.0
+	for item: int in b.inv_in:
+		if b.inv_in[item] > 0:
+			b.inv_in[item] -= 1
+			if b.inv_in[item] == 0:
+				b.inv_in.erase(item)
+			recycled_credits += reg.items[item].value
+			recycled_total += reg.items[item].value
+			b.last_out_tick = now
+			return
 
 
 # --- Inserters ---------------------------------------------------------------
@@ -190,9 +232,19 @@ func output_to_tile(tile: int, item: int, from: Building = null) -> bool:
 func accepts(b: Building, item: int) -> bool:
 	if not b.is_active():
 		return false
-	if b.def.kind == &"crafter":
-		var need: int = _inputs(b.def.recipe).get(item, 0)
-		return need > 0 and b.inv_in.get(item, 0) + need <= maxi(b.def.input_limit, need)
+	match b.def.kind:
+		&"crafter":
+			var need: int = _inputs(b.recipe()).get(item, 0)
+			return need > 0 and b.inv_in.get(item, 0) + need <= maxi(b.def.input_limit, need)
+		&"storage", &"core":
+			return b.def.storage_capacity <= 0 or b.stored_count() < b.def.storage_capacity
+		&"recycler":
+			var queued := 0
+			for k: int in b.inv_in:
+				queued += b.inv_in[k]
+			return reg.items[item].value > 0 and queued < 10
+		&"generator":
+			return reg.item_index(b.def.fuel_item) == item and b.inv_in.get(item, 0) < b.def.input_limit
 	if b.def.tower != null:
 		var t := b.def.tower
 		return reg.item_index(t.ammo_item) == item and b.ammo + t.rounds_per_item <= t.magazine_size
@@ -203,6 +255,8 @@ func give(b: Building, item: int) -> void:
 	b.last_in_tick = now
 	if b.def.tower != null:
 		b.ammo += b.def.tower.rounds_per_item
+	elif b.def.kind == &"storage" or b.def.kind == &"core":
+		b.inv_out[item] = b.inv_out.get(item, 0) + 1
 	else:
 		b.inv_in[item] = b.inv_in.get(item, 0) + 1
 
@@ -211,6 +265,8 @@ func _take_output(b: Building, accept: Callable) -> int:
 	for item: int in b.inv_out:
 		if b.inv_out[item] > 0 and accept.call(item):
 			b.inv_out[item] -= 1
+			if b.inv_out[item] == 0 and (b.def.kind == &"storage" or b.def.kind == &"core"):
+				b.inv_out.erase(item)
 			b.last_out_tick = now
 			return item
 	return -1

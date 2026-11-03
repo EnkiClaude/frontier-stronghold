@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/building_def.gd" id="1_def"]
+[ext_resource type="Resource" path="res://data/towers/icy_blast.tres" id="2_tower"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"icy_blast"
+kind = &"tower"
+category = &"defense"
+display_name = "Icy Blast"
+description = "Freezing burst around its target: light damage, slows every enemy in the blast by 45%. Pair with damage towers. Needs Coolant Cells (water + copper plate)."
+size = Vector2i(2, 2)
+blocks_path = true
+cost = 130
+material_cost = {
+&"copper_plate": 10
+}
+build_time = 2.0
+color = Color(0.45, 0.8, 0.95, 1)
+toolbar_slot = 5
+directional = false
+tower = ExtResource("2_tower")

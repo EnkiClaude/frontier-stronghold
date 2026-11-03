@@ -31,6 +31,10 @@ var _info_body: Label
 var _info_buttons: HBoxContainer
 var _sell_btn: Button
 var _move_btn: Button
+var _recipe_btn: Button
+var _toolbar: HFlowContainer
+var _tabs_row: HBoxContainer
+var _shown_category: StringName = &""
 var _tool_buttons: Dictionary = {}  # BuildingDef or &"excavate" -> Button
 var _toast: Label
 var _toast_time := 0.0
@@ -87,13 +91,15 @@ func _process(delta: float) -> void:
 		_toast_time -= delta
 		_toast.modulate.a = clampf(_toast_time / 0.5, 0.0, 1.0)
 	var reason := controller.ghost_reason()
+	if reason == "" and controller.power_warning():
+		reason = "No Power Node in range — this tower needs power (Power tab)."
 	_hint.text = reason if reason != "" else "LMB build/select · drag for lines · RMB cancel/sell · R rotate · X excavate · M move · Space pause · +/- speed · scroll/pinch zoom"
 	_hint.modulate = Color(1, 0.55, 0.5) if reason != "" else Color(1, 1, 1, 0.75)
 	_refresh -= delta
 	if _refresh <= 0.0:
 		_refresh = 0.2
 		_resources.text = _resources_text()
-		_refresh_info()
+		_refresh_tools()
 	if sim.game_over and not _game_over.visible:
 		_game_over_label.text = "THE CORE HAS FALLEN\n\nSurvived %s · %d kills · %d assaults" % [_clock_text(sim.time), sim.kills, sim.spawner.assault_number()]
 		_game_over.visible = true
@@ -114,7 +120,7 @@ func _sample_production() -> void:
 func _resources_text() -> String:
 	var lines := PackedStringArray()
 	lines.append("[color=#73f2ff][b]RESOURCES[/b][/color]")
-	lines.append("Credits: [b]%d[/b]" % sim.credits)
+	lines.append("Credits: [b]%d[/b]%s" % [sim.credits, "   [color=#9aa](+%d recycled)[/color]" % sim.factory.recycled_total if sim.factory.recycled_total > 0 else ""])
 	var totals := sim.item_totals()
 	var now := sim.factory.produced
 	var past: PackedInt32Array = _history[0] if not _history.is_empty() else now
@@ -125,11 +131,25 @@ func _resources_text() -> String:
 		if totals[i] == 0 and now[i] == 0:
 			continue
 		any = true
-		var icon := DataRegistry.art(sim.reg.items[i].icon)
-		var img := "[img=18x18]%s[/img] " % icon.resource_path if icon != null and icon.resource_path != "" else ""
-		lines.append("%s%s: [b]%d[/b]   [color=#9aa]%+.0f/min[/color]" % [img, sim.reg.items[i].display_name, totals[i], rate])
+		lines.append("%s%s: [b]%d[/b] [color=#9fe](%d stored)[/color]  [color=#9aa]%+.0f/min[/color]" % [
+			_item_img(i), sim.reg.items[i].display_name, totals[i], sim.stock(i), rate])
 	if not any:
 		lines.append("No production yet —\nbuild a Mining Drill on ore.")
+	lines.append("[color=#9aa]Stored = Core + Storage, used for building materials.[/color]")
+	if not sim.power.nodes.is_empty() or not sim.power.consumers.is_empty():
+		lines.append("")
+		lines.append("[color=#73f2ff][b]POWER[/b][/color]")
+		var gen := 0.0
+		for st in sim.power.network_stats:
+			gen += st.x
+		var short := sim.power.total_demand > gen + 0.01
+		lines.append("Generating %.0f / needed %.0f%s" % [gen, sim.power.total_demand, "   [color=#ff5a4a]SHORTAGE[/color]" if short else ""])
+		var unpowered := 0
+		for c in sim.power.consumers:
+			if c.network < 0:
+				unpowered += 1
+		if unpowered > 0:
+			lines.append("[color=#ff5a4a]%d tower(s) not connected — add a Power Node[/color]" % unpowered)
 	var ammo := sim.ammo_summary()
 	if ammo[1] > 0:
 		lines.append("")
@@ -140,6 +160,13 @@ func _resources_text() -> String:
 		if ammo[3] > 0:
 			lines.append("[color=#ffc04a]Low (<25%%): %d[/color]" % ammo[3])
 	return "\n".join(lines)
+
+
+func _item_img(i: int) -> String:
+	var icon := DataRegistry.art(sim.reg.items[i].icon)
+	if icon != null and icon.resource_path != "":
+		return "[img=18x18]%s[/img] " % icon.resource_path
+	return "[color=#%s]■[/color] " % sim.reg.items[i].color.to_html(false)
 
 
 # --- Info panel --------------------------------------------------------------
@@ -155,20 +182,51 @@ func _refresh_info() -> void:
 		_sell_btn.disabled = not b.def.sellable
 		_move_btn.text = "Move (-%d)" % sim.relocate_fee(b)
 		_move_btn.disabled = not b.def.relocatable or not b.is_active()
+		_recipe_btn.visible = not b.def.recipes.is_empty()
+		if _recipe_btn.visible:
+			_recipe_btn.text = "Recipe: %s  ▶" % _recipe_name(b.recipe())
 		_info_panel.visible = true
 	elif tool_def != null:
 		_info_title.text = "Build: %s" % tool_def.display_name
-		_info_body.text = _def_text(tool_def) + "\n\nCost %d credits · %dx%d tiles%s" % [
-			tool_def.cost, tool_def.size.x, tool_def.size.y, " · R to rotate" if tool_def.directional else ""]
+		_info_body.text = _def_text(tool_def) + "\n\nCost: %s · %dx%d tiles%s" % [
+			_cost_text(tool_def), tool_def.size.x, tool_def.size.y, " · R to rotate" if tool_def.directional else ""]
 		_info_buttons.visible = false
+		_recipe_btn.visible = false
 		_info_panel.visible = true
 	elif controller.mode == BuildController.Mode.EXCAVATE:
 		_info_title.text = "Excavate"
-		_info_body.text = "Removes rock (grey, speckled) to open new routes.\nCost %d credits · takes %.0f s." % [sim.rules.excavate_cost, sim.rules.excavate_time]
+		_info_body.text = "Removes rock (purple crystal) to open new routes and adds %d Stone to the Core.\nCost %d credits · takes %.0f s." % [sim.rules.excavate_stone, sim.rules.excavate_cost, sim.rules.excavate_time]
 		_info_buttons.visible = false
+		_recipe_btn.visible = false
 		_info_panel.visible = true
 	else:
 		_info_panel.visible = false
+
+
+## "175 credits + 10 Steel (have 3)".
+func _cost_text(def: BuildingDef) -> String:
+	var parts := PackedStringArray(["%d credits" % def.cost])
+	for id in def.material_cost:
+		var idx := sim.reg.item_index(StringName(id))
+		var have := sim.stock(idx)
+		var need := int(def.material_cost[id])
+		parts.append("%s%d %s (have %d)%s" % ["[!] " if have < need else "", need, sim.reg.items[idx].display_name, have, ""])
+	return " + ".join(parts)
+
+
+func _recipe_name(r: RecipeDef) -> String:
+	if r == null:
+		return "-"
+	return r.display_name if r.display_name != "" else String(r.id).capitalize()
+
+
+func _cycle_recipe() -> void:
+	var b := controller.selected
+	if b == null or b.def.recipes.is_empty():
+		return
+	sim.set_recipe(b.id, b.recipe_index + 1)
+	controller.remember_recipe(b)
+	_refresh_info()
 
 
 ## Static description of a building type (used for tools and selections).
@@ -183,13 +241,41 @@ func _def_text(def: BuildingDef) -> String:
 		lines.append("Fire rate: %.1f shots/s   (%.0f DPS)" % [t.fire_rate, t.damage * t.fire_rate])
 		lines.append("Range: %.1f tiles" % t.range_tiles)
 		lines.append("Targeting: %s" % _targeting_text(t.targeting))
+		match t.attack:
+			&"cone":
+				lines.append("Attack: %.0f° cone, hits every enemy in it" % t.cone_angle)
+			&"splash":
+				lines.append("Attack: blast of %.1f tiles around the target" % t.splash_radius)
+			&"pulse":
+				lines.append("Attack: pulse hitting everything within range")
+			&"chain":
+				lines.append("Attack: chains to %d more enemies (%.0f%% damage per jump)" % [t.chain_count, t.chain_falloff * 100.0])
+		if t.slow_time > 0.0:
+			lines.append("Slows by %.0f%% for %.1f s" % [(1.0 - t.slow_factor) * 100.0, t.slow_time])
+		if t.burn_time > 0.0:
+			lines.append("Burns for %.0f damage/s over %.0f s" % [t.burn_dps, t.burn_time])
+		if t.stun_time > 0.0:
+			lines.append("Stuns for %.2f s" % t.stun_time)
 		if t.ammo_item != &"":
 			var ammo_name := sim.reg.items[sim.reg.item_index(t.ammo_item)].display_name
 			lines.append("Ammo: %s (+%d rounds each)" % [ammo_name, t.rounds_per_item])
 			lines.append("Magazine: %d rounds (new towers start with %d)" % [t.magazine_size, t.starter_ammo])
-	if def.recipe != null:
+		if t.power_draw > 0.0:
+			lines.append("Power: uses %.0f while enemies are in range" % t.power_draw)
+	if def.power_output > 0.0:
 		lines.append("")
-		lines.append("Recipe: %s → %s  (%.1f s)" % [_items_text(def.recipe.inputs), _items_text(def.recipe.outputs), def.recipe.time])
+		lines.append("Produces %.0f power, burning 1 %s every %.0f s while needed." % [def.power_output, sim.reg.items[sim.reg.item_index(def.fuel_item)].display_name, def.fuel_time])
+	if def.supply_radius > 0.0:
+		lines.append("")
+		lines.append("Powers buildings within %.1f tiles; links to nodes within %.0f tiles." % [def.supply_radius, def.link_range])
+	if def.storage_capacity > 0:
+		lines.append("")
+		lines.append("Holds %d items." % def.storage_capacity)
+	if not def.recipes.is_empty():
+		lines.append("")
+		lines.append("Recipes (choose after building):")
+		for r in def.recipes:
+			lines.append("  %s → %s  (%.1f s)" % [_items_text(r.inputs), _items_text(r.outputs), r.time])
 	if def.kind == &"drill":
 		lines.append("")
 		lines.append("Mines 1 ore every %.1f s (%.0f/min)." % [def.mining_time, 60.0 / def.mining_time])
@@ -208,6 +294,13 @@ func _building_text(b: Building) -> String:
 		var t := b.def.tower
 		if not sim.infinite_ammo and t.ammo_item != &"":
 			lines.append("Loaded: %d / %d rounds%s" % [b.ammo, t.magazine_size, "   — EMPTY! Feed it ammo." if b.ammo <= 0 else ""])
+		if t.power_draw > 0.0:
+			if b.network < 0:
+				lines.append("[!] Not connected to power — place a Power Node within 4.5 tiles.")
+			elif b.wants_power:
+				lines.append("Power: %.0f%%%s" % [b.power_satisfaction * 100.0, "  [!] not enough generators/coal" if b.power_satisfaction < 1.0 else ""])
+			else:
+				lines.append("Power: connected (idle)")
 		lines.append("Kills: %d   Rounds fired: %d" % [b.kills, b.rounds_fired])
 	match b.def.kind:
 		&"crafter":
@@ -223,6 +316,19 @@ func _building_text(b: Building) -> String:
 		&"inserter":
 			if b.held >= 0:
 				lines.append("Holding: %s" % sim.reg.items[b.held].display_name)
+		&"storage", &"core":
+			var cap := "%d / %d" % [b.stored_count(), b.def.storage_capacity] if b.def.storage_capacity > 0 else "%d" % b.stored_count()
+			lines.append("Contents (%s): %s" % [cap, _inv_text(b.inv_out)])
+		&"generator":
+			var fuel := sim.reg.item_index(b.def.fuel_item)
+			lines.append("Fuel: %d %s%s" % [b.inv_in.get(fuel, 0), sim.reg.items[fuel].display_name, "   (burning)" if b.burning else ""])
+			if b.network < 0:
+				lines.append("[!] Not connected — place a Power Node within 4.5 tiles.")
+		&"pump":
+			if b.held >= 0:
+				lines.append("Output blocked — put a belt or machine in front (arrow).")
+		&"recycler":
+			lines.append("Queue: %s" % _inv_text(b.inv_in))
 	if b.def.sellable:
 		lines.append("Value: %d credits" % b.invested)
 	return "\n".join(lines)
@@ -326,6 +432,11 @@ func _build() -> void:
 	_info_buttons.add_child(_sell_btn)
 	_info_buttons.add_child(_move_btn)
 	info_box.add_child(_info_buttons)
+	_recipe_btn = _button("Recipe")
+	_recipe_btn.tooltip_text = "Click to switch recipe. Buffered inputs go back to the Core."
+	_recipe_btn.pressed.connect(_cycle_recipe)
+	_recipe_btn.visible = false
+	info_box.add_child(_recipe_btn)
 	_info_panel.add_child(info_box)
 	_info_panel.visible = false
 	root.add_child(_info_panel)
@@ -345,22 +456,29 @@ func _build() -> void:
 	bottom.add_child(_hint)
 	var bar := _panel()
 	bar.size_flags_horizontal = Control.SIZE_FILL
-	var toolbar := HFlowContainer.new()
-	toolbar.add_theme_constant_override("h_separation", 6)
-	toolbar.add_theme_constant_override("v_separation", 6)
-	bar.add_child(toolbar)
+	var bar_box := VBoxContainer.new()
+	_tabs_row = HBoxContainer.new()
+	_tabs_row.add_theme_constant_override("separation", 4)
+	for cat in DataRegistry.CATEGORIES:
+		var tab := _button(String(cat).capitalize())
+		tab.custom_minimum_size = Vector2(96, 28)
+		tab.toggle_mode = true
+		tab.pressed.connect(controller.set_category.bind(cat))
+		tab.set_meta("category", cat)
+		_tabs_row.add_child(tab)
+	var hint_tab := _label(12)
+	hint_tab.text = "  [Tab] next tab"
+	hint_tab.modulate = Color(1, 1, 1, 0.55)
+	_tabs_row.add_child(hint_tab)
+	bar_box.add_child(_tabs_row)
+	_toolbar = HFlowContainer.new()
+	_toolbar.add_theme_constant_override("h_separation", 6)
+	_toolbar.add_theme_constant_override("v_separation", 6)
+	bar_box.add_child(_toolbar)
+	bar.add_child(bar_box)
 	bottom.add_child(bar)
 	root.add_child(bottom)
-	for def in sim.reg.toolbar_buildings():
-		var btn := _button("%s\n[%d]  %d cr" % [def.display_name, def.toolbar_slot, def.cost])
-		btn.tooltip_text = def.description
-		btn.pressed.connect(controller.select_build.bind(def))
-		toolbar.add_child(btn)
-		_tool_buttons[def] = btn
-	var dig := _button("Excavate\n[X]  %d cr" % sim.rules.excavate_cost)
-	dig.pressed.connect(controller.select_excavate)
-	toolbar.add_child(dig)
-	_tool_buttons[&"excavate"] = dig
+	_rebuild_toolbar()
 
 	# Bottom right: minimap + camera buttons.
 	var map_box := VBoxContainer.new()
@@ -437,7 +555,33 @@ func _build() -> void:
 	root.add_child(_game_over)
 
 
+## Fills the toolbar with the buildings of the controller's current tab.
+func _rebuild_toolbar() -> void:
+	_shown_category = controller.category
+	for child in _toolbar.get_children():
+		child.queue_free()
+	_tool_buttons.clear()
+	for def in sim.reg.toolbar_buildings(_shown_category):
+		var mats := PackedStringArray()
+		for id in def.material_cost:
+			mats.append("%d %s" % [def.material_cost[id], String(id).split("_")[0]])
+		var btn := _button("%s\n[%d] %d cr%s" % [def.display_name, def.toolbar_slot, def.cost, (" + " + ", ".join(mats)) if not mats.is_empty() else ""])
+		btn.tooltip_text = def.description
+		btn.pressed.connect(controller.select_build.bind(def))
+		_toolbar.add_child(btn)
+		_tool_buttons[def] = btn
+	var dig := _button("Excavate\n[X] %d cr" % sim.rules.excavate_cost)
+	dig.pressed.connect(controller.select_excavate)
+	_toolbar.add_child(dig)
+	_tool_buttons[&"excavate"] = dig
+	for tab in _tabs_row.get_children():
+		if tab is Button:
+			(tab as Button).button_pressed = tab.get_meta("category") == _shown_category
+
+
 func _refresh_tools() -> void:
+	if controller.category != _shown_category:
+		_rebuild_toolbar()
 	for key in _tool_buttons:
 		var btn: Button = _tool_buttons[key]
 		var active := false
@@ -445,7 +589,8 @@ func _refresh_tools() -> void:
 			active = controller.mode == BuildController.Mode.BUILD and controller.build_def == key
 		else:
 			active = controller.mode == BuildController.Mode.EXCAVATE
-		btn.modulate = Color(1.0, 0.85, 0.3) if active else Color.WHITE
+		var affordable: bool = not (key is BuildingDef) or (sim.credits >= key.cost and sim.has_materials(key.material_cost))
+		btn.modulate = Color(1.0, 0.85, 0.3) if active else (Color.WHITE if affordable else Color(1, 1, 1, 0.45))
 	_refresh_info()
 
 

@@ -70,12 +70,20 @@ func item_index(id: StringName) -> int:
 func validate_references() -> void:
 	for def: BuildingDef in buildings_by_id.values():
 		if def.kind == &"crafter":
-			if def.recipe == null:
-				errors.append("Crafter '%s' has no recipe" % def.id)
+			if def.recipes.is_empty():
+				errors.append("Crafter '%s' has no recipes" % def.id)
 				continue
-			for item in def.recipe.inputs.keys() + def.recipe.outputs.keys():
-				if not item_index_by_id.has(StringName(item)):
-					errors.append("Recipe '%s' uses unknown item '%s'" % [def.recipe.id, item])
+			for recipe in def.recipes:
+				for item in recipe.inputs.keys() + recipe.outputs.keys():
+					if not item_index_by_id.has(StringName(item)):
+						errors.append("Recipe '%s' uses unknown item '%s'" % [recipe.id, item])
+		for item in def.material_cost:
+			if not item_index_by_id.has(StringName(item)):
+				errors.append("Building '%s' costs unknown item '%s'" % [def.id, item])
+		if def.pump_item != &"" and not item_index_by_id.has(def.pump_item):
+			errors.append("Pump '%s' makes unknown item '%s'" % [def.id, def.pump_item])
+		if def.fuel_item != &"" and not item_index_by_id.has(def.fuel_item):
+			errors.append("Generator '%s' burns unknown item '%s'" % [def.id, def.fuel_item])
 		if def.tower != null and def.tower.ammo_item != &"" and not item_index_by_id.has(def.tower.ammo_item):
 			errors.append("Tower '%s' uses unknown ammo '%s'" % [def.id, def.tower.ammo_item])
 	for def: TerrainDef in terrain_by_id.values():
@@ -122,13 +130,20 @@ static func art(t: Texture2D) -> Texture2D:
 	return t if art_enabled else null
 
 
-## Buildings shown in the toolbar, ordered by slot.
-func toolbar_buildings() -> Array[BuildingDef]:
+## Toolbar tabs in display order.
+const CATEGORIES: Array[StringName] = [&"defense", &"logistics", &"production", &"power"]
+
+
+## Buildings shown in a toolbar tab (all tabs if [param category] is empty), by slot.
+func toolbar_buildings(category: StringName = &"") -> Array[BuildingDef]:
 	var out: Array[BuildingDef] = []
 	for def: BuildingDef in buildings_by_id.values():
-		if def.toolbar_slot > 0:
+		if def.toolbar_slot > 0 and (category == &"" or def.category == category):
 			out.append(def)
-	out.sort_custom(func(a: BuildingDef, b: BuildingDef) -> bool: return a.toolbar_slot < b.toolbar_slot)
+	out.sort_custom(func(a: BuildingDef, b: BuildingDef) -> bool:
+		var ca := CATEGORIES.find(a.category)
+		var cb := CATEGORIES.find(b.category)
+		return a.toolbar_slot < b.toolbar_slot if ca == cb else ca < cb)
 	return out
 
 

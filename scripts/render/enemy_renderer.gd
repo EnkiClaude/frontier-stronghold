@@ -54,7 +54,14 @@ func _draw() -> void:
 		var s := maxf(def.radius * (2.6 if tex != null else 2.0), min_size)
 		# Dark backing disc: keeps enemies readable on any terrain.
 		draw_circle(p, s * 0.42, Color(0, 0, 0, 0.55))
-		draw_texture_rect(tex if tex != null else _fallback, Rect2(p - Vector2(s, s) * 0.5, Vector2(s, s)), false, def.color)
+		var tint := def.color
+		if e.slow_t[i] > 0.0:
+			tint = tint.lerp(Color(0.55, 0.9, 1.0), 0.55)
+		if e.burn_t[i] > 0.0:
+			tint = tint.lerp(Color(1.0, 0.6, 0.15), 0.45)
+		draw_texture_rect(tex if tex != null else _fallback, Rect2(p - Vector2(s, s) * 0.5, Vector2(s, s)), false, tint)
+		if e.stun_t[i] > 0.0:
+			draw_arc(p, s * 0.55, 0.0, TAU, 12, Color(0.85, 0.85, 1.0, 0.9), maxf(0.05, s * 0.08))
 		var frac := e.hp[i] / e.max_hp[i]
 		if show_bars and frac < 0.999:
 			var w := maxf(0.6, def.radius * 2.0)

@@ -16,3 +16,9 @@ excavate_time = 2.0
 tick_rate = 30
 flow_nodes_per_tick = 8000
 infinite_ammo = false
+start_items = {
+&"iron_plate": 20,
+&"copper_plate": 10,
+&"brick": 10
+}
+excavate_stone = 2

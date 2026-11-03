@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/building_def.gd" id="1_def"]
+[ext_resource type="Resource" path="res://data/towers/lightning_tower.tres" id="2_tower"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"lightning_tower"
+kind = &"tower"
+category = &"defense"
+display_name = "Lightning Tower"
+description = "Long-range lightning strike that jumps to 3 nearby enemies. Strong against clusters. Needs power (Generator + Power Node)."
+size = Vector2i(2, 2)
+blocks_path = true
+cost = 200
+material_cost = {
+&"copper_plate": 20,
+&"steel": 10
+}
+build_time = 3.0
+color = Color(0.75, 0.6, 1, 1)
+toolbar_slot = 7
+directional = false
+tower = ExtResource("2_tower")

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="TowerDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/tower_def.gd" id="1_tower"]
+
+[resource]
+script = ExtResource("1_tower")
+range_tiles = 13.0
+damage = 70.0
+fire_rate = 0.7
+damage_type = &"armor_piercing"
+targeting = &"strongest"
+attack = &"single"
+ammo_item = &"rifle_rounds"
+rounds_per_item = 5
+magazine_size = 20
+starter_ammo = 10

@@ -20,3 +20,4 @@ toolbar_slot = 2
 tower = ExtResource("2_tower")
 texture = ExtResource("3_texture")
 turret_texture = ExtResource("4_turret_texture")
+category = &"defense"

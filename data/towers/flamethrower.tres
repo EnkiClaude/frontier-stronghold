@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="TowerDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/tower_def.gd" id="1_tower"]
+
+[resource]
+script = ExtResource("1_tower")
+range_tiles = 4.5
+damage = 2.0
+fire_rate = 8.0
+damage_type = &"fire"
+targeting = &"first"
+attack = &"cone"
+cone_angle = 50.0
+burn_dps = 2.0
+burn_time = 3.0
+ammo_item = &"fuel_canister"
+rounds_per_item = 40
+magazine_size = 200
+starter_ammo = 80

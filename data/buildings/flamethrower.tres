@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/building_def.gd" id="1_def"]
+[ext_resource type="Resource" path="res://data/towers/flamethrower.tres" id="2_tower"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"flamethrower"
+kind = &"tower"
+category = &"defense"
+display_name = "Flamethrower"
+description = "Short-range cone of fire that hits every enemy in front of it and sets them burning. Great against swarms. Needs Fuel Canisters (coal + iron plate)."
+size = Vector2i(2, 2)
+blocks_path = true
+cost = 160
+material_cost = {
+&"copper_plate": 10
+}
+build_time = 2.0
+color = Color(0.88, 0.36, 0.16, 1)
+toolbar_slot = 4
+directional = false
+tower = ExtResource("2_tower")

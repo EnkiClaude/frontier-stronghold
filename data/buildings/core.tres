@@ -18,3 +18,5 @@ sellable = false
 relocatable = false
 toolbar_slot = 0
 texture = ExtResource("2_texture")
+category = &"defense"
+storage_capacity = 0

@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/building_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"generator"
+kind = &"generator"
+category = &"power"
+display_name = "Generator"
+description = "Burns Coal (delivered by a Robotic Arm) to make 120 power while something needs it. Connect it to towers with Power Nodes."
+size = Vector2i(2, 2)
+blocks_path = false
+cost = 80
+material_cost = {
+&"brick": 10,
+&"copper_plate": 5
+}
+build_time = 2.0
+color = Color(0.62, 0.5, 0.3, 1)
+toolbar_slot = 1
+directional = false
+power_output = 120.0
+fuel_item = &"coal"
+fuel_time = 5.0
+input_limit = 10

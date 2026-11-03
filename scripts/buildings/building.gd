@@ -37,6 +37,21 @@ var last_out_tick: int = -100000
 ## Drill: tile the last item was delivered to.
 var last_out_tile: int = -1
 
+## Crafter: index into def.recipes of the active recipe.
+var recipe_index: int = 0
+## Materials paid at construction (item id -> count), refunded on sale.
+var invested_materials: Dictionary = {}
+## Generator: seconds of fuel left in the current item.
+var fuel_left: float = 0.0
+## Generator: true while producing power this tick.
+var burning := false
+## Electric tower / power consumer: share of demanded power received (0..1).
+var power_satisfaction: float = 0.0
+## Power network id this building is attached to (-1 = none).
+var network: int = -1
+## Electric tower: enemies in range, so it draws power (set each tick).
+var wants_power := false
+
 # Tower runtime state.
 ## Rounds loaded.
 var ammo: int = 0
@@ -46,6 +61,21 @@ var rounds_fired: int = 0
 var cooldown: float = 0.0
 var target_uid: int = -1
 var aim_angle: float = 0.0
+
+
+## Active recipe of a crafter (null for other kinds).
+func recipe() -> RecipeDef:
+	if def.recipes.is_empty():
+		return null
+	return def.recipes[clampi(recipe_index, 0, def.recipes.size() - 1)]
+
+
+## Total items held in inv_out (storage fill level).
+func stored_count() -> int:
+	var n := 0
+	for item: int in inv_out:
+		n += inv_out[item]
+	return n
 
 
 func size() -> Vector2i:

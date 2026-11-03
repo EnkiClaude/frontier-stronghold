@@ -18,9 +18,13 @@ extends Resource
 @export var no_build_radius: float = 0.0
 ## Towers fire without ammunition (Phase 1 behaviour; tests/debug).
 @export var infinite_ammo: bool = false
+## Items in the Core at the start (item id -> count).
+@export var start_items: Dictionary = {}
 @export_group("Excavation")
 @export var excavate_cost: int = 15
 @export var excavate_time: float = 2.0
+## Stone added to the Core per excavated rock tile.
+@export var excavate_stone: int = 2
 @export_group("Simulation")
 @export var tick_rate: int = 30
 ## Flow field tiles processed per tick during a recompute.

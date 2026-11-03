@@ -70,6 +70,28 @@ func _initialize() -> void:
 		var ctrl: BuildController = main.get("controller")
 		ctrl.select_build(sim.reg.buildings_by_id[&"mining_drill"])
 		ctrl.mouse_override = Vector2(17.0, 73.0)
+	if scenario == "arsenal":
+		sim.credits = 100000
+		for item in [&"copper_plate", &"steel", &"brick", &"coal"]:
+			sim.add_to_core(sim.reg.item_index(item), 300)
+		var ground := sim.reg.terrain_code(&"ground")
+		for x in range(9, 70):
+			for y in range(60, 100):
+				sim.grid.set_terrain(x, y, ground)
+				sim.path.terrain_changed(sim.grid.idx(x, y))
+		sim.infinite_ammo = true
+		var cy := sim.core.origin.y + 1
+		var ids := [&"chain_gun", &"sniper_rifle", &"flamethrower", &"icy_blast", &"tesla_coil", &"lightning_tower"]
+		for k in ids.size():
+			print(ids[k], " ", sim.place(ids[k], Vector2i(18 + k * 4, cy - 4)))
+		sim.place(&"power_node", Vector2i(37, cy - 7))
+		sim.place(&"generator", Vector2i(38, cy - 10))
+		sim.place(&"storage", Vector2i(14, cy - 10))
+		MazeScenario.run(sim, 4.0)
+		sim.building_at(Vector2i(38, cy - 10)).inv_in[sim.reg.item_index(&"coal")] = 10
+		sim.skip_preparation()
+		MazeScenario.run(sim, seconds)
+		cam.position = Vector2(30, cy) * WorldGrid.TILE_PX
 	if scenario == "enemy" and sim.enemies.count == 0:
 		MazeScenario.run(sim, seconds)
 	if scenario == "enemy" and sim.enemies.count > 0:
