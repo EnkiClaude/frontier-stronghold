@@ -99,6 +99,9 @@ func _ready() -> void:
 	add_child(camera)
 	camera.make_current()
 	camera.clamp_to_world()
+	if not GameSettings.touch_ui():
+		# Desktop: no empty space left of the map at the start.
+		camera.position.x = maxf(camera.position.x, camera.view_half_size().x - camera.edge_margin)
 	camera.middle_clicked.connect(controller.pipette)
 	camera.multi_touch_started.connect(controller.abort_gesture)
 	camera.one_finger_pan = func() -> bool: return controller.mode == BuildController.Mode.SELECT
@@ -112,6 +115,9 @@ func _ready() -> void:
 		clock.paused = not clock.paused
 		_speed_changed())
 	hud.speed_cycled.connect(func() -> void: _set_speed_index((_speed_index + 1) % SPEEDS.size()))
+	hud.speed_selected.connect(func(i: int) -> void:
+		clock.paused = false
+		_set_speed_index(i))
 	GameSettings.get_instance().changed.connect(_apply_settings.bind(route_view))
 	_apply_settings(route_view)
 

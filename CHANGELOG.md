@@ -5,6 +5,25 @@ goes up for each development phase and PATCH for fixes and playtest feedback.
 The version is set in `project.godot` (`application/config/version`), and it
 appears in the window title, the HUD and every exported file name.
 
+## v0.3.4 — 2026-11-04 (performance and UI overhaul)
+Design: `docs/decisions/ADR-009-render-caching-and-ui-theme.md`.
+- **Much faster drawing in big bases.** On a late-game test base (2,500 structures, 7,000 belt items, 2,000 enemies), the views went from about 25 ms to about 3 ms per frame.
+  - Walls, belts and tunnels are drawn once into cached map chunks.
+  - Towers and machines are only drawn when on screen.
+  - Belt items skip off-screen belt lines and hide when zoomed far out.
+  - Cheaper enemy drawing; the minimap no longer redraws every building 10 times a second.
+- **New UI look** (desktop and phone):
+  - Status bar: credits, Core health bar, enemies, kills, a wave/assault timer bar and the game time.
+    It also has a Pause / 1x / 2x / 3x speed control and a "Start waves" button.
+  - Build dock: building cards with icons, name, credit cost and material cost.
+    A cost turns red when you can't afford it, and number keys are shown on desktop.
+  - Info panel: icon, name, category and state, then the stats with dim labels and warnings in red.
+  - Resources: a table (item, total, stored, rate per minute) that you can collapse.
+  - Desktop: the reason you can't build appears next to the cursor; a key-hint line under the dock changes with the tool.
+  - Toasts are coloured pills: green for results, red for problems.
+  - Menu, credits and game over were restyled; the version moved into the menu.
+- The camera starts at the left map edge on desktop (no empty space); phones still centre on the Core.
+
 ## v0.3.3 — 2026-11-03 (phone playtest fixes)
 - **Fixed: towers and buildings couldn't be placed on phones.** The input bindings only matched
   device 0 (a real mouse), but taps on iOS arrive as emulated mouse clicks from device −1. All

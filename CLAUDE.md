@@ -16,6 +16,8 @@ Read `PROJECT_PLAN.md` (design), `TODO.md` (current work), `DEVELOPMENT_LOG.md`
 - **Web build:** `tools/export.sh Web`, then publish the folder to the `gh-pages` branch
   (orphan, force-pushed, with `.nojekyll`). Phone layout/touch: test with `--touch` or
   headless Chromium using iPhone emulation.
+- Frame-time profiling of the views: `godot --headless --path . -s tools/profile_frame.gd [-- zoom]`.
+- Style UI through `UiTheme` (scripts/ui/ui_theme.gd); don't hardcode colours in HUD code.
 - Check visuals with `tools/screenshot.gd` (scenarios: start, battle, supply, enemy).
   Pass `--no-art` to check the fallback colours.
 

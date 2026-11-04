@@ -13,6 +13,13 @@ var camera: CameraController
 var _img: Image
 var _tex: ImageTexture
 var _terrain_dirty := false
+## Structures baked at 1 pixel per tile; rebuilt when they change and once a
+## second (tower ammo colours), not drawn rect by rect.
+var _bld_img: Image
+var _bld_tex: ImageTexture
+var _bld_version := -1
+var _bld_age := 0.0
+var _enemy_pts := PackedVector2Array()
 var _timer := 0.0
 var _dragging := false
 
@@ -26,6 +33,9 @@ func setup(game: GameSim, cam: CameraController, width_px: float) -> void:
 		for y in g.height:
 			_img.set_pixel(x, y, _terrain_color(g.get_terrain(x, y)))
 	_tex = ImageTexture.create_from_image(_img)
+	_bld_img = Image.create(g.width, g.height, false, Image.FORMAT_RGBA8)
+	_bld_tex = ImageTexture.create_from_image(_bld_img)
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	g.terrain_changed.connect(_on_terrain_changed)
 	custom_minimum_size = Vector2(width_px, width_px * g.height / g.width)
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -50,15 +60,16 @@ func _process(delta: float) -> void:
 	if _terrain_dirty:
 		_terrain_dirty = false
 		_tex.update(_img)
+	_bld_age += REDRAW_INTERVAL
+	if sim.structures_version != _bld_version or _bld_age >= 1.0:
+		_bake_buildings()
 	queue_redraw()
 
 
-func _draw() -> void:
-	if sim == null:
-		return
-	var g := sim.grid
-	var s := size / Vector2(g.width, g.height)
-	draw_texture_rect(_tex, Rect2(Vector2.ZERO, size), false)
+func _bake_buildings() -> void:
+	_bld_version = sim.structures_version
+	_bld_age = 0.0
+	_bld_img.fill(Color(0, 0, 0, 0))
 	for b: Building in sim.buildings.values():
 		var col: Color
 		match b.def.kind:
@@ -70,13 +81,28 @@ func _draw() -> void:
 				col = Color(1.0, 0.7, 0.1) if b.ammo > 0 or sim.infinite_ammo else Color(1.0, 0.3, 0.9)
 			_:
 				col = Color(0.65, 0.65, 0.7)
-		draw_rect(Rect2(Vector2(b.origin) * s, Vector2(b.size()) * s).grow(0.3), col)
+		_bld_img.fill_rect(Rect2i(b.origin, b.size()), col)
+	_bld_tex.update(_bld_img)
+
+
+func _draw() -> void:
+	if sim == null:
+		return
+	var g := sim.grid
+	var s := size / Vector2(g.width, g.height)
+	draw_texture_rect(_tex, Rect2(Vector2.ZERO, size), false)
+	draw_texture_rect(_bld_tex, Rect2(Vector2.ZERO, size), false)
 	for at in sim.nests:
 		draw_rect(Rect2(Vector2(at) * s, Vector2(GameSim.NEST_SIZE) * s).grow(2.0), Color(0.8, 0.1, 0.1))
+	# All enemies in one draw call: a short thick segment per enemy.
 	var e := sim.enemies
-	var dot := Vector2(3, 3)
+	_enemy_pts.resize(e.count * 2)
 	for i in e.count:
-		draw_rect(Rect2(Vector2(e.x[i], e.y[i]) * s - dot * 0.5, dot), ENEMY_COLOR)
+		var p := Vector2(e.x[i] * s.x, e.y[i] * s.y)
+		_enemy_pts[i * 2] = p - Vector2(1.5, 0)
+		_enemy_pts[i * 2 + 1] = p + Vector2(1.5, 0)
+	if e.count > 0:
+		draw_multiline(_enemy_pts, ENEMY_COLOR, 3.0)
 	# Camera view.
 	if camera != null:
 		var half := camera.get_viewport_rect().size * 0.5 / camera.zoom.x / WorldGrid.TILE_PX

@@ -19,16 +19,107 @@ const IO_MIN_PX := 14.0
 const OUTLINE := Color(0, 0, 0, 0.55)
 
 
+## Buildings whose look never changes once built (no animation or status
+## overlay): drawn once into cached map chunks instead of every frame.
+const STATIC_KINDS := {&"wall": true, &"belt": true, &"tunnel": true}
+## Static chunk size in tiles. Each chunk is its own canvas item, so Godot
+## culls off-screen chunks and a change only redraws its own chunk.
+const CHUNK := 32
+## Off-screen margin (tiles) for culling the per-frame layer.
+const CULL_MARGIN := 3.0
+
+## When true this node is one static chunk drawing [member _chunk_buildings].
+var _is_chunk := false
+var _chunk_buildings: Array[Building] = []
+## Chunk key (Vector2i) -> BuildingRenderer chunk node.
+var _chunks: Dictionary = {}
+## Chunk key -> signature of its contents at the last redraw.
+var _chunk_sigs: Dictionary = {}
+## Buildings drawn every frame (towers, machines, anything not yet active).
+var _dynamic: Array[Building] = []
+var _seen_version := -1
+## Icon mode (HUD toolbar icons): draws only this building, without status bars.
+var icon_building: Building
+
+
 func _process(_delta: float) -> void:
+	if _is_chunk or sim == null or icon_building != null:
+		return
+	if sim.structures_version != _seen_version:
+		_seen_version = sim.structures_version
+		_sort_buildings()
 	queue_redraw()
+
+
+## Splits buildings into per-frame and static ones and redraws the static
+## chunks whose contents changed.
+func _sort_buildings() -> void:
+	_dynamic.clear()
+	var buckets: Dictionary = {}
+	var sigs: Dictionary = {}
+	for b: Building in sim.buildings.values():
+		if not (b.is_active() and STATIC_KINDS.has(b.def.kind)):
+			_dynamic.append(b)
+			continue
+		var key := Vector2i(b.origin.x / CHUNK, b.origin.y / CHUNK)
+		if not buckets.has(key):
+			buckets[key] = [] as Array[Building]
+			sigs[key] = 0
+		buckets[key].append(b)
+		sigs[key] = hash([sigs[key], b.id, b.rotation, b.variant])
+	for key: Vector2i in _chunks.keys():
+		if not buckets.has(key):
+			var gone: BuildingRenderer = _chunks[key]
+			gone.queue_free()
+			_chunks.erase(key)
+			_chunk_sigs.erase(key)
+	for key: Vector2i in buckets:
+		if _chunk_sigs.get(key, null) == sigs[key]:
+			continue
+		var chunk: BuildingRenderer = _chunks.get(key)
+		if chunk == null:
+			chunk = BuildingRenderer.new()
+			chunk._is_chunk = true
+			chunk.sim = sim
+			chunk.show_behind_parent = true  # Towers and machines draw on top.
+			add_child(chunk)
+			_chunks[key] = chunk
+		chunk._chunk_buildings = buckets[key]
+		chunk.queue_redraw()
+		_chunk_sigs[key] = sigs[key]
+
+
+## Number of static chunk nodes (tests/profiling).
+func chunk_count() -> int:
+	return _chunks.size()
 
 
 func _draw() -> void:
 	if sim == null:
 		return
+	if _is_chunk:
+		for b in _chunk_buildings:
+			_draw_building(b)
+		return
+	if icon_building != null:
+		var b := icon_building
+		var r := Rect2(b.origin, b.size())
+		var tex := DataRegistry.art(b.def.texture)
+		if tex != null:
+			_draw_textured(b, r, tex)
+		else:
+			_draw_fallback(b, r)
+		if b.def.kind == &"inserter":
+			_draw_inserter_arm(b, r)
+		elif b.def.kind in [&"drill", &"pump"]:
+			draw_direction(r, b.rotation, Color(1, 1, 1, 0.85), 0.1)
+		return
+	var view := (get_global_transform_with_canvas().affine_inverse() * get_viewport_rect()).grow(CULL_MARGIN)
 	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.004)
 	for at in sim.nests:
 		var r := Rect2(at, GameSim.NEST_SIZE)
+		if not view.intersects(r):
+			continue
 		draw_circle(r.get_center(), 1.6 + pulse * 0.3, Color(1.0, 0.15, 0.2, 0.18))
 		draw_rect(r, NEST_COLOR)
 		draw_rect(r.grow(-0.35), NEST_COLOR.lightened(0.25 + pulse * 0.2))
@@ -42,16 +133,28 @@ func _draw() -> void:
 	var show_io := get_global_transform_with_canvas().get_scale().x >= IO_MIN_PX
 	for link in sim.power.links:
 		draw_line(link[0], link[1], Color(1.0, 0.9, 0.35, 0.55), 0.07)
-	for b: Building in sim.buildings.values():
+	for b in _dynamic:
+		if not sim.buildings.has(b.id):
+			continue  # Removed this frame; the lists refresh next frame.
 		var r := Rect2(b.origin, b.size())
-		var tex := DataRegistry.art(b.def.texture)
-		if tex != null:
-			_draw_textured(b, r, tex)
-		else:
-			_draw_fallback(b, r)
-		_draw_overlays(b, r, tex != null)
+		if not view.intersects(r):
+			continue
+		_draw_building(b)
 		if show_io:
 			draw_io(self, sim, b, true)
+	var sel: Building = sim.buildings.get(selected_id)
+	if sel != null:
+		draw_rect(Rect2(sel.origin, sel.size()).grow(0.1), Color(0.5, 0.95, 1.0, 0.95), false, 0.1)
+
+
+func _draw_building(b: Building) -> void:
+	var r := Rect2(b.origin, b.size())
+	var tex := DataRegistry.art(b.def.texture)
+	if tex != null:
+		_draw_textured(b, r, tex)
+	else:
+		_draw_fallback(b, r)
+	_draw_overlays(b, r, tex != null)
 
 
 ## Seconds an input/output marker stays visible after the last transfer.
@@ -315,8 +418,6 @@ func _draw_overlays(b: Building, r: Rect2, textured: bool) -> void:
 		var frac := 1.0 - float(b.timer) / maxf(1.0, total * sim.tick_rate)
 		var bar := Rect2(r.position + Vector2(0.1, r.size.y - 0.25), Vector2((r.size.x - 0.2) * frac, 0.15))
 		draw_rect(bar, Color(0.4, 0.95, 1.0, 0.9))
-	if b.id == selected_id:
-		draw_rect(r.grow(0.1), Color(0.5, 0.95, 1.0, 0.95), false, 0.1)
 
 
 func _draw_inserter_arm(b: Building, r: Rect2) -> void:

@@ -17,10 +17,13 @@ var clock: SimClock
 
 var _textures: Array[Texture2D] = []
 var _fallback: Texture2D
+## Soft dark disc behind every enemy (a texture is much cheaper than draw_circle).
+var _shadow: Texture2D
 
 
 func _ready() -> void:
 	_fallback = _circle_texture(32)
+	_shadow = _disc_texture(32, Color(0, 0, 0, 0.55))
 	for def in sim.reg.enemies:
 		_textures.append(DataRegistry.art(def.texture))
 
@@ -43,17 +46,23 @@ func _draw() -> void:
 	var min_size := MIN_SCREEN_PX / maxf(px_per_tile, 0.001)
 	var show_bars := px_per_tile >= BAR_MIN_PX
 	var view := visible_rect()
+	var x0 := view.position.x
+	var y0 := view.position.y
+	var x1 := view.end.x
+	var y1 := view.end.y
 	for i in e.count:
-		var p := Vector2(lerpf(e.prev_x[i], e.x[i], a), lerpf(e.prev_y[i], e.y[i], a))
-		if not view.has_point(p):
+		var px := lerpf(e.prev_x[i], e.x[i], a)
+		var py := lerpf(e.prev_y[i], e.y[i], a)
+		if px < x0 or px > x1 or py < y0 or py > y1:
 			continue
+		var p := Vector2(px, py)
 		var t := e.type[i]
 		var def: EnemyDef = sim.reg.enemies[t]
 		var tex := _textures[t]
 		# Textured sprites include a glow margin, so draw them a bit larger.
 		var s := maxf(def.radius * (2.6 if tex != null else 2.0), min_size)
 		# Dark backing disc: keeps enemies readable on any terrain.
-		draw_circle(p, s * 0.42, Color(0, 0, 0, 0.55))
+		draw_texture_rect(_shadow, Rect2(p - Vector2(s, s) * 0.42, Vector2(s, s) * 0.84), false)
 		var tint := def.color
 		if e.slow_t[i] > 0.0:
 			tint = tint.lerp(Color(0.55, 0.9, 1.0), 0.55)
@@ -68,6 +77,16 @@ func _draw() -> void:
 			var top := p.y - def.radius - 0.28
 			draw_rect(Rect2(p.x - w * 0.5, top, w, 0.1), Color(0, 0, 0, 0.75))
 			draw_rect(Rect2(p.x - w * 0.5, top, w * frac, 0.1), Color(0.35, 0.9, 0.35).lerp(Color(0.95, 0.25, 0.2), 1.0 - frac))
+
+
+static func _disc_texture(px: int, col: Color) -> ImageTexture:
+	var img := Image.create(px, px, false, Image.FORMAT_RGBA8)
+	var r := px * 0.5
+	for x in px:
+		for y in px:
+			var d := Vector2(x + 0.5 - r, y + 0.5 - r).length()
+			img.set_pixel(x, y, Color(col, col.a * clampf(r - d, 0.0, 1.0)))
+	return ImageTexture.create_from_image(img)
 
 
 static func _circle_texture(px: int) -> ImageTexture:

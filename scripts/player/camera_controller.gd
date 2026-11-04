@@ -166,6 +166,11 @@ func center_on(world_pos: Vector2) -> void:
 	clamp_to_world()
 
 
+## Half the visible area in world units at the current zoom.
+func view_half_size() -> Vector2:
+	return _view_size() * 0.5 / zoom.x
+
+
 func _view_size() -> Vector2:
 	return get_viewport_rect().size if is_inside_tree() else Vector2(1600, 900)
 

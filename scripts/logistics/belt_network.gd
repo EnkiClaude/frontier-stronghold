@@ -33,6 +33,11 @@ class Line:
 	var out_offset: float = 0.0
 	## Dead-end line pointing into a non-belt tile: items are offered to [member BeltNetwork.sink].
 	var sink_tile: int = -1
+	## Tile centres and unit directions, parallel to [member tiles], plus the
+	## line's bounding box (tile units). Precomputed for drawing.
+	var centers := PackedVector2Array()
+	var dirs := PackedVector2Array()
+	var bounds := Rect2()
 
 
 var grid: WorldGrid
@@ -182,6 +187,8 @@ func _rebuild() -> void:
 					break
 				cur = nx
 			lines.append(line)
+	for line in lines:
+		_cache_geometry(line)
 	# Connect line ends: continuation (loop closure) or side-load.
 	for line in lines:
 		var last := line.tiles[line.tiles.size() - 1]
@@ -197,6 +204,22 @@ func _rebuild() -> void:
 	for k in saved_items.size():
 		var t := saved_tiles[k]
 		_insert(lines[line_at[t]], index_at[t] + saved_frac[k], saved_items[k], true)
+
+
+func _cache_geometry(line: Line) -> void:
+	var n := line.tiles.size()
+	line.centers.resize(n)
+	line.dirs.resize(n)
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for k in n:
+		var t := line.tiles[k]
+		var c := Vector2(grid.cell_of(t)) + Vector2(0.5, 0.5)
+		line.centers[k] = c
+		line.dirs[k] = Vector2(DIRS[int(dir_of[t])])
+		lo = lo.min(c)
+		hi = hi.max(c)
+	line.bounds = Rect2(lo, hi - lo).grow(0.5)
 
 
 # --- Simulation --------------------------------------------------------------
@@ -302,9 +325,7 @@ func item_count() -> int:
 func item_position(line: Line, k: int) -> Vector2:
 	var p := line.pos[k]
 	var ti := clampi(int(p), 0, line.tiles.size() - 1)
-	var t := line.tiles[ti]
-	var d := Vector2(DIRS[int(dir_of.get(t, 0))])
-	return Vector2(grid.cell_of(t)) + Vector2(0.5, 0.5) + d * (p - ti - 0.5)
+	return line.centers[ti] + line.dirs[ti] * (p - ti - 0.5)
 
 
 ## [param ignore_last]: the line's front item is about to leave (loop wrap).

@@ -412,3 +412,33 @@ check called `stockpile_buildings()`, which scanned all buildings
 
   **Not verified on a real iPhone/Safari.**
 - Tests: 141 pass (new: pinch/two-finger pan, one-finger pan gating, sell mode, gesture abort).
+
+## 2026-11-04 — v0.3.4: performance pass and UI overhaul
+
+Player report: a stable mid-game base is working (flamethrowers and Tesla coils). The request: look for optimizations, then modernise the UI.
+
+**Profiling.** New `tools/profile_frame.gd`.
+- It loads a late-game base and times each view by hiding it.
+- It turns off the headless idle sleep (`low_processor_usage_mode_sleep_usec`), which otherwise pads every frame to about 6.9 ms.
+
+| Late game: 2,500 structures, 7,000 belt items, 2,000 enemies | Before | After |
+|---|---|---|
+| All views, zoom 0.75 | ~25 ms | 3.2 ms |
+| BuildingRenderer | 15.6 ms | ~0 (cached chunks) |
+| ItemRenderer | 9.4 ms | ~2 ms |
+| EnemyRenderer, zoom 0.3 | 3.3 ms | 1.6 ms |
+
+The sim was already fine (benchmarks unchanged: 3.8 ms median tick with 2,000 enemies). Details in ADR-009.
+
+**UI.** `UiTheme` (one code-built Theme) and `BuildingIcons` (icons rendered by the real building renderer in one-shot SubViewports). The HUD was rewritten on top of them:
+- status chips with Core and wave bars;
+- a speed segmented control;
+- an icon card dock;
+- a table-style resources panel;
+- a richer info panel;
+- a reason pill next to the cursor;
+- coloured toasts.
+
+The phone layout keeps its v0.3.3 structure with the new style. Checked in xvfb screenshots (start, battle, supply, menu, 330 s run through waves) and in iPhone-emulated Chromium.
+
+Tests: 145 pass (new: `test_render_cache`).
